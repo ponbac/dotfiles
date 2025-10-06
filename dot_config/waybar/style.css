@@ -1,0 +1,129 @@
+@import "../omarchy/current/theme/waybar.css";
+
+* {
+  background-color: @background;
+  color: @foreground;
+
+  border: none;
+  border-radius: 0;
+  min-height: 0;
+  font-family: CaskaydiaMono Nerd Font;
+  font-size: 13px;
+}
+
+.modules-left {
+  margin-left: 8px;
+}
+
+.modules-right {
+  margin-right: 8px;
+}
+
+#workspaces button {
+  all: initial;
+  padding: 0 6px;
+  margin: 0 1.5px;
+  min-width: 9px;
+}
+
+#workspaces button.empty {
+  opacity: 0.5;
+}
+
+#tray,
+#cpu,
+#battery,
+#network,
+#bluetooth,
+#pulseaudio,
+#language,
+#clock,
+#custom-omarchy,
+#custom-screenrecording-indicator,
+#custom-update {
+  min-width: 12px;
+  margin: 0 7.5px;
+}
+
+#custom-expand-icon {
+  margin: 0 7.5px;
+}
+
+/* Align spacing for items inside the tray group drawer */
+.tray-group-item {
+  margin: 0 7.5px;
+}
+
+/* Avoid double margins on the inner tray when wrapped by tray-group-item */
+.tray-group-item #tray {
+  margin: 0;
+}
+
+tooltip {
+  padding: 2px;
+  background: @background;
+  color: @foreground;
+}
+
+#custom-update {
+  font-size: 10px;
+}
+
+/* Ensures the clock has symmetric spacing inside islands */
+
+.hidden {
+  opacity: 0;
+}
+
+#custom-screenrecording-indicator {
+  min-width: 12px;
+  margin-left: 8.75px;
+  font-size: 10px;
+}
+
+#custom-screenrecording-indicator.active {
+  color: #a55555;
+}
+
+/* Islands: make the Waybar window transparent and style module groups */
+window#waybar {
+  all: unset;
+  background: transparent;
+}
+
+/* Clear default backgrounds so only islands provide surfaces */
+window#waybar * {
+  background-color: transparent;
+}
+
+/* Island containers */
+window#waybar .modules-left,
+window#waybar .modules-center,
+window#waybar .modules-right {
+  padding: 7px;
+  margin: 10px 10px 3px 10px;
+  border-radius: 10px;
+  background-color: alpha(@background, 0.6);
+  box-shadow: 0px 0px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* Keep original edge spacing intents */
+.modules-left {
+  margin-left: 10px;
+}
+.modules-center {
+  margin-left: 0;
+  margin-right: 0;
+}
+.modules-right {
+  margin-right: 10px;
+}
+
+/* Subtle hover lift for islands */
+window#waybar .modules-left:hover,
+window#waybar .modules-center:hover,
+window#waybar .modules-right:hover {
+  background-color: alpha(@background, 0.72);
+  box-shadow: 0px 0px 4px rgba(0, 0, 0, 0.7);
+  transition: all 0.2s ease;
+}
