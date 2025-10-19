@@ -8,13 +8,13 @@
     "keybinding": "default",
     "keybinds": {
     },
-    "popToRootOnClose": false,
+    "popToRootOnClose": true,
     "rootSearch": {
         "searchFiles": false
     },
     "theme": {
         "iconTheme": "Breeze Dark",
-        "name": "catppuccin-mocha.json"
+        "name": "rose-pine-moon"
     },
     "window": {
         "csd": true,

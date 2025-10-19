@@ -7,8 +7,8 @@
   border: none;
   border-radius: 0;
   min-height: 0;
-  font-family: CaskaydiaMono Nerd Font;
-  font-size: 13px;
+  font-family: 'CaskaydiaMono Nerd Font';
+  font-size: 12px;
 }
 
 .modules-left {
@@ -30,14 +30,9 @@
   opacity: 0.5;
 }
 
-#tray,
 #cpu,
 #battery,
-#network,
-#bluetooth,
 #pulseaudio,
-#language,
-#clock,
 #custom-omarchy,
 #custom-screenrecording-indicator,
 #custom-update {
@@ -45,53 +40,28 @@
   margin: 0 7.5px;
 }
 
+#tray {
+  margin-right: 16px;
+}
+
+#bluetooth {
+  margin-right: 17px;
+}
+
+#network {
+  margin-right: 13px;
+}
+
 #custom-expand-icon {
-  margin: 0 7.5px;
+  margin-right: 20px;
 }
 
-/* Align spacing for items inside the tray group drawer */
-.tray-group-item {
-  margin: 0 7.5px;
-}
-
-/* Avoid double margins on the inner tray when wrapped by tray-group-item */
-.tray-group-item #tray {
-  margin: 0;
-}
-
-tooltip {
-  padding: 2px;
-  background: @background;
-  color: @foreground;
-}
-
-#custom-update {
-  font-size: 10px;
-}
-
-/* Ensures the clock has symmetric spacing inside islands */
-
-.hidden {
-  opacity: 0;
-}
-
-#custom-screenrecording-indicator {
-  min-width: 12px;
-  margin-left: 8.75px;
-  font-size: 10px;
-}
-
-#custom-screenrecording-indicator.active {
-  color: #a55555;
-}
-
-/* Islands: make the Waybar window transparent and style module groups */
+/* Island UI styling reintroduced */
 window#waybar {
   all: unset;
   background: transparent;
 }
 
-/* Clear default backgrounds so only islands provide surfaces */
 window#waybar * {
   background-color: transparent;
 }
@@ -107,23 +77,40 @@ window#waybar .modules-right {
   box-shadow: 0px 0px 2px rgba(0, 0, 0, 0.6);
 }
 
-/* Keep original edge spacing intents */
-.modules-left {
-  margin-left: 10px;
-}
-.modules-center {
-  margin-left: 0;
-  margin-right: 0;
-}
-.modules-right {
-  margin-right: 10px;
-}
-
-/* Subtle hover lift for islands */
+/* Hover lift */
 window#waybar .modules-left:hover,
 window#waybar .modules-center:hover,
 window#waybar .modules-right:hover {
   background-color: alpha(@background, 0.72);
   box-shadow: 0px 0px 4px rgba(0, 0, 0, 0.7);
   transition: all 0.2s ease;
+}
+
+/* Themed tooltip */
+tooltip {
+  padding: 2px;
+  background: @background;
+  color: @foreground;
+}
+
+#custom-update {
+  font-size: 10px;
+}
+
+#clock {
+  margin-left: 8.75px;
+}
+
+.hidden {
+  opacity: 0;
+}
+
+#custom-screenrecording-indicator {
+  min-width: 12px;
+  margin-left: 8.75px;
+  font-size: 10px;
+}
+
+#custom-screenrecording-indicator.active {
+  color: #a55555;
 }
