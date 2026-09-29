@@ -26,6 +26,7 @@ class DotsCLIIntegrationTests(unittest.TestCase):
         self.remote = self.root / 'remote.git'
         self.peer = self.root / 'peer'
         self.apply_log = self.root / 'apply.json'
+        self.ssh_log = self.root / 'ssh.jsonl'
         self.chezmoi_log = self.root / 'chezmoi.jsonl'
         bin_dir = self.root / 'bin'
         bin_dir.mkdir()
@@ -50,6 +51,8 @@ class DotsCLIIntegrationTests(unittest.TestCase):
             'TEST_SOURCE': str(self.source),
             'TEST_APPLY_LOG': str(self.apply_log),
             'TEST_CHEZMOI_LOG': str(self.chezmoi_log),
+            'TEST_SSH_LOG': str(self.ssh_log),
+            'TEST_REMOTE': str(self.remote),
         }
         chezmoi = bin_dir / 'chezmoi'
         chezmoi.write_text(
@@ -66,6 +69,17 @@ class DotsCLIIntegrationTests(unittest.TestCase):
             '    sys.exit("Unexpected chezmoi request: " + repr(args))\n'
         )
         chezmoi.chmod(0o755)
+        ssh = bin_dir / 'ssh'
+        ssh.write_text(
+            f'#!{sys.executable}\n'
+            'import json, os, subprocess, sys\n'
+            'content = subprocess.check_output(["git", "--git-dir", os.environ["TEST_REMOTE"],\n'
+            '    "show", "master:dot_example"], text=True)\n'
+            'with open(os.environ["TEST_SSH_LOG"], "a") as log:\n'
+            '    log.write(json.dumps({"args": sys.argv[1:], "published": content}) + "\\n")\n'
+            'sys.exit(1 if os.environ.get("TEST_FAIL_HOST", "never-match") in sys.argv else 0)\n'
+        )
+        ssh.chmod(0o755)
         self.git(self.root, 'init', '--bare', '--initial-branch=master', str(self.remote))
         self.git(self.root, 'clone', str(self.remote), str(self.source))
         (self.source / 'tools').mkdir()
@@ -139,6 +153,50 @@ class DotsCLIIntegrationTests(unittest.TestCase):
         self.assertEqual((self.source / '.git/index').read_bytes(), index)
         self.assertFalse(self.apply_log.exists())
         self.assertFalse((self.home / '.local/state/dotsync-bootstrap-backups').exists())
+
+    def test_deploy_publishes_before_syncing_other_hosts(self):
+        (self.source / 'dot_example').write_bytes(b'publish before pulling\n')
+        self.cli('deploy', '-m', 'test: deploy')
+        calls = [json.loads(line) for line in self.ssh_log.read_text().splitlines()]
+        expected = [host for host in ('omarchy', 'dev-1', 'omarchy-laptop')
+                    if host != os.uname().nodename]
+        self.assertEqual([call['args'][-2] for call in calls],
+                         ['ponbac@' + host for host in expected])
+        for call in calls:
+            self.assertEqual(call['published'], 'publish before pulling\n')
+            self.assertEqual(call['args'][-1], '~/.local/bin/dotsync --yes')
+        self.assertFalse(self.apply_log.exists())
+        self.assertEqual(self.git(self.source, 'rev-parse', 'HEAD'),
+                         self.git(self.remote, 'rev-parse', 'master'))
+
+    def test_deploy_preview_does_not_publish_or_sync(self):
+        (self.source / 'dot_example').write_bytes(b'not published\n')
+        tip = self.git(self.remote, 'rev-parse', 'master')
+        self.cli('deploy', '--preview', 'dev-1')
+        self.assertEqual(self.git(self.remote, 'rev-parse', 'master'), tip)
+        self.assertEqual(self.git(self.source, 'rev-parse', 'HEAD'), tip)
+        self.assertFalse(self.ssh_log.exists())
+        self.assertFalse(self.apply_log.exists())
+
+    def test_deploy_failed_publication_never_starts_remote_sync(self):
+        self.publish_update()
+        self.cli('deploy', succeeds=False)
+        self.assertFalse(self.ssh_log.exists())
+        self.assertFalse(self.apply_log.exists())
+
+    def test_deploy_reports_partial_failure_and_tries_remaining_hosts(self):
+        self.env['TEST_FAIL_HOST'] = 'ponbac@dev-1'
+        output = self.cli('deploy', 'dev-1', 'omarchy-laptop', succeeds=False)
+        calls = [json.loads(line) for line in self.ssh_log.read_text().splitlines()]
+        self.assertEqual([call['args'][-2] for call in calls],
+                         ['ponbac@dev-1', 'ponbac@omarchy-laptop'])
+        self.assertIn('sync failed on: dev-1', output)
+
+    def test_deploy_rejects_unknown_hosts_before_transport(self):
+        output = self.cli('deploy', 'unrecognized-host', succeeds=False)
+        self.assertIn('Supported targets', output)
+        self.assertFalse(self.apply_log.exists())
+        self.assertFalse(self.ssh_log.exists())
 
     def test_push_commits_source_only_not_live_home(self):
         (self.home / '.example').write_bytes(b'private live config\n')

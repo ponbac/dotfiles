@@ -12,6 +12,7 @@ import tempfile
 SOURCE = Path(__file__).resolve().parents[1]
 BRANCH = 'master'
 REMOTE = 'origin/' + BRANCH
+HOSTS = ('omarchy', 'dev-1', 'omarchy-laptop')
 
 
 def git(*args, capture=True, env=None, check=True):
@@ -130,6 +131,35 @@ def push(args):
     print('Published. Run dotsync on the other machines. Your local live config is not automatically reapplied.')
 
 
+def deploy(args):
+    hosts = args.hosts or [host for host in HOSTS if host != os.uname().nodename]
+    if any(host not in HOSTS for host in hosts):
+        fail('Supported targets: ' + ', '.join(HOSTS))
+    hosts = list(dict.fromkeys(hosts))
+    print('Publish to GitHub, then pull/apply on: ' + ', '.join(hosts), flush=True)
+    if args.preview:
+        print(value('status', '--short') or 'No uncommitted source changes.', flush=True)
+        print('Plan only: no publication or remote sync. Remote changes/conflicts are checked during sync.')
+        return
+    confirm('Publish this source, then sync these machines?', args.yes)
+    # One confirmation covers both publication and the chosen machines. A failed
+    # push raises before any remote invocation. Each sync still refuses conflicts.
+    push(argparse.Namespace(yes=True, message=args.message))
+    failures = []
+    for host in hosts:
+        print('\n=== Sync ' + host + ' ===', flush=True)
+        command = ([sys.executable, str(SOURCE / 'tools/dots.py'), 'sync', '--yes']
+                   if host == os.uname().nodename else
+                   ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
+                    'ponbac@' + host, '~/.local/bin/dotsync --yes'])
+        if subprocess.run(command).returncode:
+            failures.append(host)
+    if failures:
+        fail('Published, but sync failed on: ' + ', '.join(failures) +
+             '. Other completed syncs were not rolled back; fix the issue and retry.')
+    print('Published and synced all selected machines.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
@@ -138,6 +168,11 @@ def main():
         p.add_argument('-y', '--yes', action='store_true', help='Approve without interactive prompts')
         if name == 'push':
             p.add_argument('-m', '--message', default='chore(dotfiles): sync configuration', help='Commit message')
+    deployment = sub.add_parser('deploy', help='Publish to GitHub, then pull/apply on selected machines')
+    deployment.add_argument('hosts', nargs='*', help='Default: the other two known machines')
+    deployment.add_argument('--preview', action='store_true', help='Show publication/target plan without fetching, pushing or applying')
+    deployment.add_argument('-m', '--message', default='chore(dotfiles): sync configuration', help='Commit message')
+    deployment.add_argument('-y', '--yes', action='store_true', help='Approve without interactive prompts')
     args = parser.parse_args()
     if not (SOURCE / '.git').is_dir():
         fail('Expected a normal Git repository in the chezmoi source.')
@@ -147,7 +182,7 @@ def main():
     actual = subprocess.check_output(['chezmoi', 'source-path'], text=True).strip()
     if Path(actual).resolve() != SOURCE:
         fail('This script is not running from the active chezmoi source.')
-    (sync if args.command == 'sync' else push)(args)
+    {'sync': sync, 'push': push, 'deploy': deploy}[args.command](args)
 
 
 if __name__ == '__main__':

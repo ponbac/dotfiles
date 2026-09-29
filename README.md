@@ -12,14 +12,28 @@ Unknown hosts are denied by `.chezmoiignore`. No implicit OS-based fallback.
 
 ## Everyday workflow
 
-Two commands are installed in `~/.local/bin/` on all three machines:
+Three commands are installed in `~/.local/bin/` on all three machines:
 
 ```sh
 dotsync                           # fetch origin/master, fast-forward, preview and apply here
 dotpush -m "chore(dotfiles): ..."   # review, commit source changes and push origin/master
+dotdeploy --preview               # show the publish + remote-sync plan without changes
+dotdeploy                         # publish to GitHub, then dotsync on the other machines
+dotdeploy dev-1                   # optionally select one or more target hosts
 ```
 
-Both ask before applying/publishing. Pass `--yes` for an intentional unattended
+`dotdeploy` defaults to the other known machines, excluding the current host.
+After confirmation, it runs the `dotpush` workflow, then invokes `dotsync --yes`
+over SSH on each target. Publication must succeed before any remote sync starts.
+Use `-m` for a commit message, or `--yes` for an unattended run. Each remote sync
+keeps its normal conflict checks, backups and Pi package reconciliation. Failed
+hosts are reported while the remaining selected hosts are still attempted;
+successful syncs and the GitHub publication are not rolled back. `--preview`
+shows the local publication/target plan, not an ahead-of-time remote file diff.
+Wallpaper assets remain separate. Specify the current hostname explicitly if
+you also want to apply locally.
+
+Git commands ask before applying/publishing. Pass `--yes` for an intentional unattended
 run. `dotsync` also reconciles pinned Pi packages on the current machine; it does
 not fan out over SSH. Run it on whichever machine should receive your changes.
 `dotpush` does not apply the source locally; run `dotsync` there too if needed.
@@ -46,7 +60,9 @@ Resolve real conflicts manually, then retry. Unknown hosts still have no managed
 configuration. The wallpaper repository is separate and currently has no remote,
 so these commands do not publish or pull wallpaper assets.
 
-The older SSH deployment remains available for bootstrapping/recovery:
+The old direct source-copy deployment is still available explicitly for
+bootstrapping/recovery. Unlike `dotdeploy`, it bypasses GitHub and replaces remote
+source edits after backing them up:
 
 ```sh
 cd ~/.local/share/chezmoi
