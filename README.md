@@ -73,8 +73,8 @@ python3 tools/deploy.py dev-1 --apply        # or config only on one host
 
 Deployment stages the source over SSH, validates rendering, preserves each
 remote's old source/Git history, backs up managed live files and chezmoi state,
-and applies the declared files. `--bootstrap` additionally reconciles pinned Pi
-packages. It does not commit, push, enable services,
+and applies the declared files. `--bootstrap` additionally ensures the four
+mise-managed coding agents are installed and reconciles pinned Pi packages. It does not commit, push, enable services,
 reload the desktop, or synchronize credentials. Requires Python 3.11+, Git,
 rsync, chezmoi and SSH access. Backups are private under
 `~/.local/state/chezmoi-deploy-backups/` on each host. The backup manifest records
@@ -91,6 +91,7 @@ Bring those edits back and review them before using SSH deployment.
 - Shared skill library and Claude-specific links/variants. Manual invocation
   flags and Codex invocation policies travel with the skills.
 - Pi extensions, selected settings/model overrides, MCP and pinned packages.
+- A shared mise manifest and nonmutating launchers for Pi, Codex, Claude and OpenCode v2.
 - Selected Claude and Codex preferences, MCP entries, and Codex hooks.
 - Clean shared Bash fragment, Git preferences, JJ, Herdr, tmux and Starship.
 - Omarchy-only user configuration, custom plugins, terminal preferences and
@@ -115,25 +116,44 @@ bash ~/.local/share/chezmoi/tools/bootstrap-agents.sh
 ```
 
 Run this on each host after changing Pi package pins, or pass `--bootstrap` to
-the deployment command. It reconciles the exact
-versions declared in Pi settings. It also retires the stale desktop-only Pi
+the deployment command. It installs the four agents selected by the shared
+mise manifest, reshims, and reconciles the exact versions declared in Pi settings. It also retires the stale desktop-only Pi
 extension on `dev-1` into a recovery backup. This is explicit, not an automatic
 network/install hook on every chezmoi apply.
 
-Omarchy owns mise activation, PATH ordering and several first-run wrappers.
-Global mise tool declarations, trust paths, system runtimes and `~/Work/.mise.toml`
-are intentionally **not synchronized**. The narrow shared exception is
-`~/.config/mise/conf.d/90-agent-release-policy.toml`: Pi, Codex, OpenCode and Claude
-Code (including their npm backend names) are exempt from the default release-age
-waiting period. Other tools retain mise's protection. `DEV.md` explains the
-inspected runtime integration.
-The verified agent executable baseline (2026-09-29) is Pi 0.99.1, Codex 0.159.0
-and Claude 2.1.285; installation remains with each host's existing package/mise
-mechanism. Codex 0.159.1 was rolled back because its Linux npm tarball returned
-404. OpenCode retains its existing package tracks: `@opencode/cli` 2.0.19 on the
-workstation, classic `opencode`/`opencode-ai` 1.18.33 on the laptop and dev-1.
-Pi extension packages are pinned; no promise is made that all host-installed
-application/runtime versions match.
+All three machines now use mise as the sole active installer for these agents:
+
+- `~/.config/mise/conf.d/95-coding-agents.toml` declares Pi, Codex and Claude via
+  mise's binary backends, and OpenCode **v2** via `npm:@opencode/cli`.
+- `90-agent-release-policy.toml` exempts these tools from release-age delays.
+- Claude/OpenCode background auto-updaters are disabled so mise remains the
+  update owner. Explicit manual update commands are not blocked.
+- `~/.local/bin/{pi,codex,claude,opencode}` delegates to `mise exec` without
+  writing globals, triggering `mise use`, or overriding age policy on launch.
+
+Omarchy still owns shell/PATH activation. Unrelated global tool declarations,
+Node/.NET/system runtimes, project overrides and trust paths remain host-local.
+The old agent entries were removed from host globals/legacy conf.d files after
+verification. Duplicate Node-global/npm-global installs, old OpenCode v1
+binaries and the active native Claude install on dev-1 were removed. Recovery
+backups live under `~/.local/state/agent-install-migration/`; credentials and
+conversation/project data were not removed. Old mise versions of the retained
+agent backends may remain as rollback versions.
+
+Verified on all three (2026-09-29): Pi **0.99.1**, Codex **0.159.0**, Claude
+**2.1.285**, OpenCode **2.0.19**. Codex's npm 0.159.1 Linux tarball was unavailable;
+the binary backend currently supplies working 0.159.0.
+
+Upgrade only these agents with:
+
+```sh
+mise upgrade pi codex claude npm:@opencode/cli
+```
+
+Do not use `mise upgrade opencode`: that registry name is the old v1 backend.
+Do not install these agents globally with npm or the native Claude installer.
+Pi extension packages remain separately pinned. `DEV.md` retains the original
+runtime audit; this targeted agent consolidation supersedes its initial deferral.
 
 ## Ayaka and wallpapers
 

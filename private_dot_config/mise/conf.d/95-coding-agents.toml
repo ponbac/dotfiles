@@ -1,0 +1,13 @@
+# One mise-managed installation per coding agent on every machine.
+# Non-agent runtimes and Omarchy's shell/PATH integration remain host-owned.
+# mise owns updates; prevent application background updaters from making a
+# second installation outside mise. Explicit manual commands remain available.
+[env]
+DISABLE_AUTOUPDATER = "1"
+OPENCODE_DISABLE_AUTOUPDATE = "1"
+
+[tools]
+pi = "latest"
+codex = "latest"
+claude = "latest"
+"npm:@opencode/cli" = { version = "latest", allow_low_downloads = "true", allow_builds = "@opencode/cli" }

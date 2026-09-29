@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# Run AFTER applying chezmoi. Installs the pinned Pi package declarations only.
-# Does not touch Omarchy/mise runtime ownership, OAuth, or project trust.
+# Run AFTER applying chezmoi. Ensure the four mise-managed coding agents and
+# pinned Pi packages exist. Do not change other runtimes, OAuth, or project trust.
 set -euo pipefail
 case "$(hostname)" in omarchy|omarchy-laptop|dev-1) ;; *) echo 'Unknown host' >&2; exit 1;; esac
-export PATH="$HOME/.local/share/mise/shims:$HOME/.npm-global/bin:$HOME/.local/bin:$PATH"
+# Bootstrap user-global declarations, not any project the caller is working in.
+cd "$HOME"
+export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+command -v mise >/dev/null
+mise install pi codex claude npm:@opencode/cli
+mise reshim
 command -v pi >/dev/null
 # Clean up a desktop extension left by the old indiscriminate sync.
 if [[ $(hostname) == dev-1 && -e "$HOME/.pi/agent/extensions/omarchy-system-theme.ts" ]]; then

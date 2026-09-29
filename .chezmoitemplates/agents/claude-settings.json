@@ -1,5 +1,8 @@
 {
   "model": "opus",
   "tui": "fullscreen",
-  "theme": "dark"
+  "theme": "dark",
+  "env": {
+    "DISABLE_AUTOUPDATER": "1"
+  }
 }

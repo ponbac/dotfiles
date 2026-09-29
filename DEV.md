@@ -1,5 +1,13 @@
 # Shared development configuration
 
+**Later decision:** the user approved consolidating the four coding agents under
+mise on all three hosts. `95-coding-agents.toml` and nonmutating launchers now
+manage only those agents, including OpenCode v2. Background self-updaters are
+disabled. Old global declarations and duplicate installers were removed after
+verification. Non-agent runtimes and trust remain host-owned. The original audit
+and initial deferral below are retained as historical context; README describes
+the current setup.
+
 Initial source capture and integration notes. The lead subsequently deployed this
 configuration to all three hosts. No commits or pushes were made. Top-level
 source directories now use the `private_` prefix (see README).

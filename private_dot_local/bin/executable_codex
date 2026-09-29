@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Versions/options live in mise conf.d; do not mutate global config on launch.
+set -euo pipefail
+exec mise exec codex -- codex "$@"
