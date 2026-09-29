@@ -127,8 +127,11 @@ are intentionally **not synchronized**. The narrow shared exception is
 Code (including their npm backend names) are exempt from the default release-age
 waiting period. Other tools retain mise's protection. `DEV.md` explains the
 inspected runtime integration.
-The common agent executable baseline is Pi 0.87.1, Codex 0.158.0 and Claude
-2.1.284; installation remains with each host's existing package/mise mechanism.
+The verified agent executable baseline (2026-09-29) is Pi 0.99.1, Codex 0.159.0
+and Claude 2.1.285; installation remains with each host's existing package/mise
+mechanism. Codex 0.159.1 was rolled back because its Linux npm tarball returned
+404. OpenCode retains its existing package tracks: `@opencode/cli` 2.0.19 on the
+workstation, classic `opencode`/`opencode-ai` 1.18.33 on the laptop and dev-1.
 Pi extension packages are pinned; no promise is made that all host-installed
 application/runtime versions match.
 

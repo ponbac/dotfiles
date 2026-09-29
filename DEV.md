@@ -24,7 +24,10 @@ and `modify_private_dot_gitconfig`: they preserve live content and manage only
 the shared fragment source line and Git include. Desktop `.bashrc`
 files contain a literal database credential (local line 133, laptop line 66).
 Those contents were not copied into the repository. Keep all startup files
-host-local; do not run `chezmoi add` on them. No mise files are managed.
+host-local; do not run `chezmoi add` on them. Mise tool declarations remain
+host-local. A later user-approved exception manages only
+`~/.config/mise/conf.d/90-agent-release-policy.toml`, exempting the four coding
+agents from release-age delays without replacing globals or activating runtimes.
 Herdr logs, sessions, plugin state and lockfiles are not configuration to sync.
 Editors and plugin installation remain out of scope.
 
