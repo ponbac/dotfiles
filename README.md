@@ -121,8 +121,12 @@ extension on `dev-1` into a recovery backup. This is explicit, not an automatic
 network/install hook on every chezmoi apply.
 
 Omarchy owns mise activation, PATH ordering and several first-run wrappers.
-Global mise configs, trust paths, system runtimes and `~/Work/.mise.toml` are
-intentionally **not synchronized**. `DEV.md` explains the inspected integration.
+Global mise tool declarations, trust paths, system runtimes and `~/Work/.mise.toml`
+are intentionally **not synchronized**. The narrow shared exception is
+`~/.config/mise/conf.d/90-agent-release-policy.toml`: Pi, Codex, OpenCode and Claude
+Code (including their npm backend names) are exempt from the default release-age
+waiting period. Other tools retain mise's protection. `DEV.md` explains the
+inspected runtime integration.
 The common agent executable baseline is Pi 0.87.1, Codex 0.158.0 and Claude
 2.1.284; installation remains with each host's existing package/mise mechanism.
 Pi extension packages are pinned; no promise is made that all host-installed

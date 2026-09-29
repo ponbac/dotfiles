@@ -1,0 +1,15 @@
+# Receive these coding-agent releases immediately. Keep mise's default waiting
+# period for other tools, and leave Omarchy's runtime/PATH ownership unchanged.
+[settings]
+minimum_release_age_excludes = [
+  "pi",
+  "codex",
+  "opencode",
+  "claude",
+  "npm:@earendil-works/pi-coding-agent",
+  "npm:@mariozechner/pi-coding-agent",
+  "npm:@openai/codex",
+  "npm:@opencode/cli",
+  "npm:opencode-ai",
+  "npm:@anthropic-ai/claude-code",
+]
