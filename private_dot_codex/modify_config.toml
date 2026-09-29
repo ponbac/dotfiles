@@ -1,0 +1,5 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- $current := dict -}}
+{{- if .chezmoi.stdin -}}{{- $current = fromToml .chezmoi.stdin -}}{{- end -}}
+{{- $policy := include (joinPath .chezmoi.sourceDir ".chezmoitemplates" "agents" "codex-settings.json") | fromJson -}}
+{{ mergeOverwrite $current $policy | toToml }}

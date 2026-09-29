@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+# Preserve host startup (including any local secrets); manage one source line only.
+import sys
+
+text = sys.stdin.read()
+line = '[[ ! -r "$HOME/.config/shell/dev.bash" ]] || source "$HOME/.config/shell/dev.bash"'
+if line not in text.splitlines():
+    text = text.rstrip('\n') + '\n\n# Shared development preferences (managed by chezmoi).\n' + line + '\n'
+sys.stdout.write(text)

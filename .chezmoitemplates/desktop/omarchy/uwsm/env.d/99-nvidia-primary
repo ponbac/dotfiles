@@ -1,0 +1,11 @@
+# Prefer the RTX 4070 SUPER for Hyprland rendering on the next login.
+# Resolve PCI paths at session startup: card numbers can change between boots,
+# and literal PCI paths contain colons that conflict with AQ_DRM_DEVICES.
+# Keep the AMD integrated GPU available as a secondary device.
+if [ -e /dev/dri/by-path/pci-0000:01:00.0-card ]; then
+    AQ_DRM_DEVICES="$(readlink -f /dev/dri/by-path/pci-0000:01:00.0-card)"
+    if [ -e /dev/dri/by-path/pci-0000:11:00.0-card ]; then
+        AQ_DRM_DEVICES="$AQ_DRM_DEVICES:$(readlink -f /dev/dri/by-path/pci-0000:11:00.0-card)"
+    fi
+    export AQ_DRM_DEVICES
+fi

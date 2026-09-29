@@ -1,0 +1,4 @@
+interface:
+  display_name: "Refactor Pass"
+  short_description: "Run a simplicity-focused cleanup refactor and verify with tests."
+  default_prompt: "Perform a refactor pass focused on simplicity after recent changes."

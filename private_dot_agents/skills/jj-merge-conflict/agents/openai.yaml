@@ -1,0 +1,6 @@
+interface:
+  display_name: "JJ Merge Conflict"
+  short_description: "Resolve active-scope JJ merge conflicts bottom-up."
+  default_prompt: "Use $jj-merge-conflict to resolve JJ merge conflicts in the user's current bookmark, branch, or working-copy stack from the bottom upward. Do not solve unrelated conflicts elsewhere in history unless explicitly asked."
+policy:
+  allow_implicit_invocation: true

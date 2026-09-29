@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "theme": "ayaka",
+  "origin": "https://github.com/ponbac/omarchy-ayaka-theme",
+  "revision": "a2a4aec56fcbd06258464d73eacbe0ede12aa10c",
+  "hosts": {
+    "omarchy": {
+      "deleted": ["backgrounds/a9.jpg", "backgrounds/wallhaven-3q9qky.png"],
+      "untracked": ["backgrounds/wallhaven-lyje9y.png"]
+    },
+    "omarchy-laptop": {"deleted": [], "untracked": []}
+  },
+  "policy": {
+    "automaticInstall": false,
+    "existingCheckout": "Verify only; never reset, clean, reclone over, or remove .git",
+    "newCheckout": "Separate reviewed install into absent directory only; retain .git, restore host wallpaper mapping, then explicitly select theme",
+    "generatedState": "Not managed",
+    "wallpaperManifest": "~/dev/omarchy-wallpapers/manifest.json"
+  }
+}

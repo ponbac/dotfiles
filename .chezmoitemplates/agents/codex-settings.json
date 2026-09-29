@@ -1,0 +1,15 @@
+{
+  "model": "gpt-6-astra",
+  "model_reasoning_effort": "medium",
+  "plan_mode_reasoning_effort": "xhigh",
+  "agents": { "max_threads": 10 },
+  "features": { "goals": true, "hooks": true },
+  "plugins": { "github@openai-curated": { "enabled": true } },
+  "mcp_servers": {
+    "executor": {
+      "url": "https://executor.pike-quail.ts.net/mcp",
+      "bearer_token_env_var": "EXECUTOR_MCP_TOKEN",
+      "default_tools_approval_mode": "writes"
+    }
+  }
+}

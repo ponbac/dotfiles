@@ -1,0 +1,38 @@
+README.md
+.gitignore
+DESKTOP.md
+DEV.md
+AGENTS-SETUP.md
+DEPLOYMENT.md
+tools
+manifests
+
+{{- if not (has .chezmoi.hostname (list "omarchy" "omarchy-laptop" "dev-1")) }}
+**
+{{- end }}
+
+{{- if not (has .chezmoi.hostname (list "omarchy" "omarchy-laptop")) }}
+.config/hypr
+.config/omarchy
+.config/alacritty
+.config/kitty
+.config/ghostty
+.config/foot
+.config/uwsm
+.config/systemd
+.agents/skills/omarchy
+.agents/skills/diagnose-crash
+.claude/skills/omarchy
+.claude/skills/diagnose-crash
+.pi/agent/extensions/omarchy-system-theme.ts
+{{- end }}
+
+{{- if eq .chezmoi.hostname "omarchy" }}
+.config/omarchy/plugins/ponbac.toki
+.config/omarchy/plugins/ponbac.idle
+.config/omarchy/plugins/ponbac.bar/ScreenSelection.js
+.config/omarchy/plugins/ponbac.bar/XpsScreenSelector.qml
+{{- end }}
+{{- if eq .chezmoi.hostname "omarchy-laptop" }}
+.config/uwsm/env.d/99-nvidia-primary
+{{- end }}

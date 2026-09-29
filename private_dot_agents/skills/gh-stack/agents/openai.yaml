@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub PR Stacks"
+  short_description: "Build GitHub PR stacks with Jujutsu or Git"
+  default_prompt: "Use $gh-stack to turn my changes into a dependency-ordered GitHub PR stack."

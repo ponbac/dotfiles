@@ -1,0 +1,39 @@
+{
+  "packages": [
+    {
+      "source": "npm:@plannotator/pi-extension@0.27.22",
+      "skills": []
+    },
+    "npm:pi-web-access@0.33.0",
+    "npm:pi-multi-skills@1.2.1",
+    "npm:pi-skillful@0.4.0",
+    "npm:pi-mcp-adapter@2.26.0"
+  ],
+  "theme": "dark",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-6-astra",
+  "defaultThinkingLevel": "medium",
+  "enableInstallTelemetry": false,
+  "skillful": {
+    "hiddenSkills": [
+      "bro",
+      "codebase-design",
+      "frontend-design",
+      "grilling",
+      "handoff",
+      "improve-codebase-architecture",
+      "plannotator-annotate",
+      "plannotator-last",
+      "plannotator-review",
+      "plannotator-visual-explainer",
+      "playwriter",
+      "teach",
+      "tech-spec",
+      "thermo-nuclear-code-quality-review",
+      "vercel-composition-patterns",
+      "vercel-react-best-practices",
+      "web-design-guidelines",
+      "writing-great-skills"
+    ]
+  }
+}

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Toki Timer"
+  short_description: "Track current work with an issue or PR link"
+policy:
+  allow_implicit_invocation: false

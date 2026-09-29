@@ -1,0 +1,4 @@
+interface:
+  display_name: "Telegram Notify"
+  short_description: "Send text, images, or video to your Telegram chat"
+  default_prompt: "Use $telegram-notify to send me a concise Telegram update or requested media."

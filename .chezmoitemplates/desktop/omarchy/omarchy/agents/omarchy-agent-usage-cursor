@@ -1,0 +1,359 @@
+#!/usr/bin/python3
+"""Collect Cursor CLI usage into one Omarchy agents-panel JSON record.
+
+Cursor has no packaged omarchy-agent-usage-cursor collector. This local
+script fills that gap: plan and included-usage meters come from Cursor's
+DashboardService using the CLI session in ~/.config/cursor/auth.json. The
+agents panel only ever reads the JSON this prints (or writes with --write).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "cursor"
+AGENT_NAME = "Cursor"
+AUTH_HELP = "Run `agent login` to authenticate."
+USAGE_URL = "https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage"
+PLAN_URL = "https://api2.cursor.sh/aiserver.v1.DashboardService/GetPlanInfo"
+PROBE_MIN_INTERVAL_SECONDS = 15
+
+
+def cache_root() -> Path:
+  root = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def usage_dir() -> Path:
+  return Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state")) / "omarchy" / "agents" / "usage"
+
+
+def auth_path() -> Path:
+  return Path(os.environ.get("CURSOR_AUTH_PATH") or (Path.home() / ".config" / "cursor" / "auth.json"))
+
+
+def empty_stats() -> dict[str, Any]:
+  return {
+    "todayPrompts": 0,
+    "todaySessions": 0,
+    "todayTotalTokens": 0,
+    "todayTokensByModel": {},
+    "recentDays": [],
+    "totalPrompts": 0,
+    "totalSessions": 0,
+    "activeDays": 0,
+    "activeDates": [],
+    "modelUsage": {},
+    "hasLocalStats": False,
+  }
+
+
+def number(value: Any) -> int:
+  try:
+    return int(value or 0)
+  except (TypeError, ValueError):
+    return 0
+
+
+def read_json(path: Path) -> dict[str, Any] | None:
+  try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+  except Exception:
+    return None
+  return payload if isinstance(payload, dict) else None
+
+
+def write_json(path: Path, payload: dict[str, Any], mode: int = 0o644) -> None:
+  handle_fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+  tmp = Path(tmp_name)
+  try:
+    with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+      handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+    tmp.chmod(mode)
+    tmp.replace(path)
+  except BaseException:
+    tmp.unlink(missing_ok=True)
+    raise
+
+
+def access_token() -> str:
+  auth = read_json(auth_path()) or {}
+  token = str(auth.get("accessToken") or "").strip()
+  if token:
+    return token
+  return str(os.environ.get("CURSOR_API_KEY") or "").strip()
+
+
+def refresh_cli_auth() -> str:
+  agent = shutil.which("agent") or shutil.which("cursor-agent")
+  if not agent:
+    return access_token()
+  try:
+    subprocess.run(
+      [agent, "whoami", "--format", "json"],
+      stdout=subprocess.DEVNULL,
+      stderr=subprocess.DEVNULL,
+      timeout=12,
+      check=False,
+    )
+  except Exception:
+    pass
+  return access_token()
+
+
+def parse_reset_at(raw: Any) -> str:
+  if raw in (None, ""):
+    return ""
+  try:
+    value = float(raw)
+  except (TypeError, ValueError):
+    text = str(raw).strip()
+    if not text:
+      return ""
+    try:
+      parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+      return ""
+    if parsed.tzinfo is None:
+      parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat()
+  if value > 10_000_000_000:
+    value /= 1000.0
+  try:
+    return datetime.fromtimestamp(value, timezone.utc).isoformat()
+  except (OverflowError, OSError, ValueError):
+    return ""
+
+
+def percent_used(raw: Any) -> float | None:
+  try:
+    value = float(raw)
+  except (TypeError, ValueError):
+    return None
+  if value != value:  # NaN
+    return None
+  # DashboardService reports 0-100; the panel meters are 0-1.
+  value /= 100.0
+  return max(0.0, min(1.0, value))
+
+
+def connect_post(url: str, token: str) -> dict[str, Any]:
+  request = urllib.request.Request(
+    url,
+    data=b"{}",
+    method="POST",
+    headers={
+      "Authorization": "Bearer " + token,
+      "Content-Type": "application/json",
+      "Connect-Protocol-Version": "1",
+      "Accept": "application/json",
+      "User-Agent": "omarchy-agent-usage-cursor/1",
+    },
+  )
+  with urllib.request.urlopen(request, timeout=12) as response:
+    payload = json.loads(response.read().decode("utf-8", errors="replace"))
+  return payload if isinstance(payload, dict) else {}
+
+
+def probe(token: str) -> dict[str, Any]:
+  try:
+    usage = connect_post(USAGE_URL, token)
+    try:
+      plan = connect_post(PLAN_URL, token)
+    except Exception:
+      plan = {}
+  except urllib.error.HTTPError as error:
+    if error.code in (401, 403):
+      return {"ok": False, "auth": True, "helpText": AUTH_HELP}
+    return {
+      "ok": False,
+      "helpText": f"Cursor's usage endpoint returned status {error.code}.",
+    }
+  except Exception:
+    return {
+      "ok": False,
+      "transport": True,
+      "helpText": "Couldn't reach Cursor's usage endpoint. Retrying shortly.",
+    }
+
+  plan_info = plan.get("planInfo") if isinstance(plan.get("planInfo"), dict) else {}
+  plan_usage = usage.get("planUsage") if isinstance(usage.get("planUsage"), dict) else {}
+  resets_at = parse_reset_at(usage.get("billingCycleEnd") or plan_info.get("billingCycleEnd"))
+  limits: list[dict[str, Any]] = []
+
+  windows = (
+    ("Cursor Models", plan_usage.get("autoPercentUsed")),
+    ("Other Models", plan_usage.get("apiPercentUsed")),
+  )
+  for title, raw in windows:
+    percent = percent_used(raw)
+    if percent is None:
+      continue
+    limits.append({
+      "label": title,
+      "title": title,
+      "percent": percent,
+      "resetsAt": resets_at,
+    })
+  if not limits:
+    percent = percent_used(plan_usage.get("totalPercentUsed"))
+    if percent is not None:
+      limits.append({
+        "label": "Included",
+        "title": "Included",
+        "percent": percent,
+        "resetsAt": resets_at,
+      })
+
+  if not limits:
+    return {"ok": False, "helpText": "Cursor's usage endpoint returned no limits."}
+
+  return {
+    "ok": True,
+    "limits": limits,
+    "tierLabel": str(plan_info.get("planName") or "").strip(),
+  }
+
+
+def usable_cached_limits(cached: dict[str, Any]) -> list[dict[str, Any]]:
+  entries = cached.get("limits")
+  if not isinstance(entries, list):
+    return []
+  now = datetime.now(timezone.utc)
+  out = []
+  for entry in entries:
+    if not isinstance(entry, dict):
+      continue
+    raw = str(entry.get("resetsAt") or "")
+    if raw:
+      try:
+        resets_at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if resets_at.tzinfo is None:
+          resets_at = resets_at.replace(tzinfo=timezone.utc)
+        if resets_at <= now:
+          continue
+      except ValueError:
+        pass
+    out.append(entry)
+  return out
+
+
+def collect_limits(force: bool) -> dict[str, Any]:
+  result = {
+    "limits": [],
+    "tierLabel": "",
+    "usageStatusText": "",
+    "authHelpText": AUTH_HELP,
+  }
+  probe_cache = cache_root() / "cursor-limits.json"
+  cached = read_json(probe_cache) or {}
+  fallback = usable_cached_limits(cached)
+  cached_tier = str(cached.get("tierLabel") or "")
+
+  token = access_token()
+  if not token:
+    token = refresh_cli_auth()
+  if not token:
+    result["limits"] = fallback
+    result["tierLabel"] = cached_tier
+    result["usageStatusText"] = "Waiting for auth"
+    return result
+
+  fetched_at = number(cached.get("fetchedAtMs")) / 1000
+  if fallback and not force and time.time() - fetched_at < PROBE_MIN_INTERVAL_SECONDS:
+    result["limits"] = fallback
+    result["tierLabel"] = cached_tier
+    result["authHelpText"] = ""
+    return result
+
+  fetched = probe(token)
+  if fetched.get("auth"):
+    token = refresh_cli_auth()
+    if token:
+      fetched = probe(token)
+
+  if fetched.get("ok"):
+    result["limits"] = fetched["limits"]
+    result["tierLabel"] = str(fetched.get("tierLabel") or "")
+    result["authHelpText"] = ""
+    write_json(probe_cache, {
+      "fetchedAtMs": round(time.time() * 1000),
+      "tierLabel": result["tierLabel"],
+      "limits": result["limits"],
+    })
+    return result
+
+  if fetched.get("transport"):
+    result["retryAdvised"] = True
+  if fallback:
+    result["limits"] = fallback
+    result["tierLabel"] = cached_tier
+    result["authHelpText"] = str(fetched.get("helpText") or AUTH_HELP)
+    return result
+
+  result["usageStatusText"] = "Cursor limits unavailable"
+  result["authHelpText"] = str(fetched.get("helpText") or AUTH_HELP)
+  if fetched.get("auth"):
+    result["usageStatusText"] = "Waiting for auth"
+  return result
+
+
+def build_record(force: bool) -> dict[str, Any]:
+  limits = collect_limits(force)
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": len(limits["limits"]) > 0,
+    "scope": "account",
+    "tierLabel": limits["tierLabel"],
+    "usageStatusText": limits["usageStatusText"],
+    "authHelpText": limits["authHelpText"],
+    "limits": limits["limits"],
+  }
+  if limits.get("retryAdvised"):
+    record["retryAdvised"] = True
+  record.update(empty_stats())
+  return record
+
+
+def write_record(record: dict[str, Any]) -> None:
+  directory = usage_dir()
+  directory.mkdir(parents=True, exist_ok=True)
+  write_json(directory / f"{AGENT_ID}.json", record, mode=0o600)
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  parser.add_argument(
+    "--write",
+    action="store_true",
+    help="Write ~/.local/state/omarchy/agents/usage/cursor.json for the agents panel",
+  )
+  args = parser.parse_args()
+  record = build_record(args.force)
+  if args.write:
+    write_record(record)
+  else:
+    print(json.dumps(record, separators=(",", ":")))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

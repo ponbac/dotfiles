@@ -1,0 +1,12 @@
+[Unit]
+Description=Refresh Cursor CLI usage when other Omarchy agent collectors run
+
+[Path]
+PathModified=%h/.local/state/omarchy/agents/usage/claude.json
+PathModified=%h/.local/state/omarchy/agents/usage/codex.json
+PathModified=%h/.local/state/omarchy/agents/usage/fireworks.json
+Unit=omarchy-agent-usage-cursor.service
+MakeDirectory=true
+
+[Install]
+WantedBy=default.target

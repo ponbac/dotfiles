@@ -1,0 +1,104 @@
+#:schema https://jj-vcs.github.io/jj/latest/config-schema.json
+
+[user]
+name = "ponbac"
+email = "root@ponbac.xyz"
+
+# [ui]
+# diff-formatter = ["difft", "--color=always", "$left", "$right"]
+
+[revset-aliases]
+# "user" -> Selects all commits by you
+user = "author('root@ponbac.xyz')"
+# "stack" -> Selects everything in the current stack (from main to here)
+# Usage: jj log -r stack
+stack = "trunk()..@"
+# "stack_root" -> The bottom-most commit of your current stack
+# Usage: jj edit stack_root
+stack_root = "roots(stack)"
+# "closest_pushable(to)" -> Finds the closest pushable commit (non-empty, has description, mutable)
+'closest_pushable(to)' = 'heads(::to & mutable() & ~description(exact:"") & (~empty() | merges()))'
+# "closest_bookmark(to)" -> Finds the closest bookmark to the given revision
+'closest_bookmark(to)' = 'heads(::to & bookmarks())'
+
+[aliases]
+# "jj p" -> Edit the previous change (@-)
+p = ["edit", "@-"]
+# "jj n" -> Edit the next change (@+)
+n = ["edit", "@+"]
+# "jj wip" -> Show a graph of ONLY the current stack I am working on
+wip = ["log", "-r", "(trunk()..@) | trunk() | @"]
+# "jj jump-root" -> Jump to the first commit of the current feature
+jump-root = ["edit", "roots(trunk()..@)"]
+# "jj nuke" -> Abandon the current commit and move to parent
+# (Like git reset --hard HEAD~)
+nuke = ["abandon"]
+# "jj diff-stack" -> Show the cumulative diff of the whole stack against main
+# (Like a GitHub PR view in your terminal)
+diff-stack = ["diff", "--from", "roots(trunk()..@)-", "--to", "@"]
+{{ if eq .chezmoi.hostname "omarchy-laptop" }}
+{{ else }}
+# "jj bdiff" -> Show the cumulative diff of the current stack against trunk
+bdiff = ["diff", "--from", "roots(trunk()..@)-", "--to", "@"]
+{{ end }}
+# "jj tug" -> Move the closest bookmark to the closest pushable commit
+# If an argument is given, move that specific bookmark instead
+tug = ["util", "exec", "--", "sh", "-c", """
+if [ "x$1" = "x" ]; then
+  jj bookmark move --from "closest_bookmark(@)" --to "closest_pushable(@)"
+else
+  jj bookmark move --to "closest_pushable(@)" "$@"
+fi
+""", ""]
+# "jj pr" -> Create a GitHub PR using the closest bookmark as the head
+pr = ["util", "exec", "--", "bash", "-c", """
+gh pr create --head $(jj log -r 'closest_bookmark(@)' -T 'bookmarks' --no-graph | cut -d ' ' -f 1)
+"""]
+{{ if eq .chezmoi.hostname "omarchy-laptop" }}
+# "jj init" -> Initialize jj when needed, then track all origin bookmarks
+{{ else }}
+# "jj init" -> Initialize jj in a git repo with colocate and track origin branches
+{{ end }}
+init = ["util", "exec", "--", "bash", "-c", """
+{{ if eq .chezmoi.hostname "omarchy-laptop" -}}
+set -e
+if ! jj root >/dev/null 2>&1; then
+  jj git init --colocate
+fi
+# Track only origin bookmarks, not upstream or other remotes.
+jj bookmark track '*' --remote origin
+{{ else -}}
+set -euo pipefail
+jj git init --colocate || [[ -d .jj ]]
+# only track origin branches, not upstream or others
+jj bookmark track 'glob:*' --remote=origin
+{{ end -}}
+"""]
+# "jj pull" -> Fetch from git and rebase current stack on closest bookmark or trunk
+pull = ["util", "exec", "--", "bash", "-c", """
+closest="$(jj log -r 'closest_bookmark(@)' -n 1 -T 'bookmarks' --no-graph | cut -d ' ' -f 1)"
+closest="${closest%\\*}"
+jj git fetch
+jj log -n 1 -r "${closest}" 2>&1 > /dev/null && jj rebase -d "${closest}" || jj rebase -d 'trunk()'
+jj log -r 'stack()'
+"""]
+# "jj push" -> Tug if needed, push to origin, and track the bookmark
+push = ["util", "exec", "--", "bash", "-c", """
+tuggable="$(jj log -r 'closest_bookmark(@)..closest_pushable(@)' -T '"n"' --no-graph)"
+[[ -n "$tuggable" ]] && jj tug
+pushable="$(jj log -r 'remote_bookmarks(remote=origin)..@' -T 'bookmarks' --no-graph)"
+[[ -n "$pushable" ]] && jj git push || echo "Nothing to push."
+closest="$(jj log -r 'closest_bookmark(@)' -n 1 -T 'bookmarks' --no-graph | cut -d ' ' -f 1)"
+closest="${closest%\\*}"
+tracked="$(jj bookmark list -r ${closest} -t -T 'if(remote == "origin", name)')"
+[[ "$tracked" == "$closest" ]] || jj bookmark track "${closest}@origin"
+"""]
+
+{{ if eq .chezmoi.hostname "omarchy-laptop" }}
+{{ else }}
+[snapshot]
+max-new-file-size = 2621440
+
+{{ end }}
+[ui]
+diff-formatter = ":git"

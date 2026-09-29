@@ -1,0 +1,131 @@
+onboarding = false
+
+[theme]
+name = "catppuccin"
+
+# Deep navy/purple palette inspired by the Herdr 0.7.5 sidebar examples.
+[theme.custom]
+panel_bg = "#181825"
+surface0 = "#1e1e2e"
+surface1 = "#313244"
+surface_dim = "#11111b"
+overlay0 = "#6c7086"
+overlay1 = "#7f849c"
+text = "#cdd6f4"
+subtext0 = "#a6adc8"
+accent = "#89b4fa"
+mauve = "#cba6f7"
+green = "#a6e3a1"
+yellow = "#f9e2af"
+red = "#f38ba8"
+blue = "#89b4fa"
+teal = "#94e2d5"
+peach = "#fab387"
+
+{{ if eq .chezmoi.hostname "omarchy" }}
+# Herdr Annotate (full install)
+{{ else }}
+{{ end }}
+[[keys.command]]
+key = "prefix+a"
+{{ if eq .chezmoi.hostname "omarchy" }}
+type = "plugin_action"
+command = "annotate.capture"
+description = "annotate text"
+
+[[keys.command]]
+key = "prefix+shift+a"
+type = "plugin_action"
+command = "annotate.copy-context"
+description = "copy annotations as context"
+
+[[keys.command]]
+key = "prefix+m"
+type = "plugin_action"
+command = "annotate.manage"
+description = "manage annotations"
+
+[[keys.command]]
+key = "prefix+o"
+type = "plugin_action"
+command = "annotate.open"
+description = "review documents in this folder"
+
+[[keys.command]]
+key = "prefix+shift+o"
+type = "plugin_action"
+command = "annotate.last"
+description = "review the agent's last reply"
+
+# Keep the jj workspace actions, moved off Annotate's recommended A bindings.
+[[keys.command]]
+key = "prefix+j"
+{{ else }}
+{{ end }}
+type = "plugin_action"
+command = "nathanflurry.jj-workspace.new"
+description = "new jj workspace"
+
+[[keys.command]]
+{{ if eq .chezmoi.hostname "omarchy" }}
+key = "prefix+shift+j"
+{{ else }}
+key = "prefix+shift+a"
+{{ end }}
+type = "plugin_action"
+command = "nathanflurry.jj-workspace.new-tab"
+description = "new jj workspace (in tab)"
+
+[[keys.command]]
+key = "prefix+d"
+type = "plugin_action"
+command = "nathanflurry.jj-workspace.remove"
+description = "remove jj workspace"
+
+[ui]
+agent_panel_sort = "priority"
+sidebar_width = 36
+sidebar_min_width = 30
+sidebar_max_width = 42
+accent = "#89b4fa"
+show_agent_labels_on_pane_borders = true
+
+# Project rows stay compact while preserving native branch and Git status colors.
+[ui.sidebar.spaces]
+row_gap = 0
+rows = [
+  ["state_icon", { token = "workspace", bold = true }],
+  [{ token = "$branch", dim = true }, "git_status"],
+]
+
+# The metadata tokens are populated by the local ponbac.sidebar-context plugin.
+[ui.sidebar.agents]
+row_gap = 0
+rows = [
+  ["state_icon", { token = "agent", bold = true }],
+  [{ token = "$summary", fg = "#89b4fa", dim = true }],
+  [{ token = "workspace", dim = true }, { token = "$branch", dim = true }, { token = "$added", fg = "#a6e3a1" }, { token = "$deleted", fg = "#f38ba8" }],
+]
+
+# Give the common agents stable identities while retaining semantic state icons.
+[ui.sidebar.agents.rows_by_agent]
+claude = [
+  ["state_icon", { token = "agent", fg = "#fab387", bold = true }],
+  [{ token = "$summary", fg = "#89b4fa", dim = true }],
+  [{ token = "workspace", dim = true }, { token = "$branch", dim = true }, { token = "$added", fg = "#a6e3a1" }, { token = "$deleted", fg = "#f38ba8" }],
+]
+codex = [
+  ["state_icon", { token = "agent", fg = "#cba6f7", bold = true }],
+  [{ token = "$summary", fg = "#89b4fa", dim = true }],
+  [{ token = "workspace", dim = true }, { token = "$branch", dim = true }, { token = "$added", fg = "#a6e3a1" }, { token = "$deleted", fg = "#f38ba8" }],
+]
+opencode = [
+  ["state_icon", { token = "agent", fg = "#a6e3a1", bold = true }],
+  [{ token = "$summary", fg = "#89b4fa", dim = true }],
+  [{ token = "workspace", dim = true }, { token = "$branch", dim = true }, { token = "$added", fg = "#a6e3a1" }, { token = "$deleted", fg = "#f38ba8" }],
+]
+pi = [
+  ["state_icon", { token = "agent", fg = "#94e2d5", bold = true }],
+  [{ token = "$summary", fg = "#89b4fa", dim = true }],
+  [{ token = "workspace", dim = true }, { token = "$branch", dim = true }, { token = "$added", fg = "#a6e3a1" }, { token = "$deleted", fg = "#f38ba8" }],
+]

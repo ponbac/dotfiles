@@ -1,0 +1,6 @@
+interface:
+  display_name: "Web Design Guidelines"
+  short_description: "Review UI code against the Web Interface Guidelines"
+
+policy:
+  allow_implicit_invocation: false

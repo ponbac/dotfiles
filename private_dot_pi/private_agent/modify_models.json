@@ -1,0 +1,5 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- $current := dict -}}
+{{- if .chezmoi.stdin -}}{{- $current = fromJson .chezmoi.stdin -}}{{- end -}}
+{{- $policy := include (joinPath .chezmoi.sourceDir ".chezmoitemplates" "agents" "pi-models.json") | fromJson -}}
+{{ mergeOverwrite $current $policy | toPrettyJson }}

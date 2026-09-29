@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh Cursor CLI usage for the Omarchy agents panel
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=15min
+Persistent=true
+Unit=omarchy-agent-usage-cursor.service
+
+[Install]
+WantedBy=timers.target

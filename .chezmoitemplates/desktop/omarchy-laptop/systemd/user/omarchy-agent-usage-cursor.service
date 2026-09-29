@@ -1,0 +1,14 @@
+[Unit]
+Description=Collect Cursor CLI usage for the Omarchy agents panel
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.config/omarchy/agents/omarchy-agent-usage-cursor --write
+Nice=10
+UMask=0077
+TimeoutStartSec=90
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
