@@ -140,9 +140,10 @@ backups live under `~/.local/state/agent-install-migration/`; credentials and
 conversation/project data were not removed. Old mise versions of the retained
 agent backends may remain as rollback versions.
 
-Verified on all three (2026-09-29): Pi **0.99.1**, Codex **0.159.0**, Claude
-**2.1.285**, OpenCode **2.0.19**. Codex's npm 0.159.1 Linux tarball was unavailable;
-the binary backend currently supplies working 0.159.0.
+Verified on all three (2026-09-29): Pi **0.99.1**, Codex **0.159.1**, Claude
+**2.1.285**, OpenCode **2.0.19**. Codex's npm 0.159.1 Linux tarball was initially
+unavailable; the binary release became available during migration and is now
+installed through mise on all three machines.
 
 Upgrade only these agents with:
 
