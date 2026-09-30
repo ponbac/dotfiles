@@ -1,22 +1,11 @@
 {
-  "settings": {
-    "hostConfigDiscovery": "off",
-    "toolPrefix": "server",
-    "scriptMode": false,
-    "outputGuard": {
-      "maxBytes": 51200,
-      "maxLines": 2000,
-      "detailsMaxBytes": 16384
-    }
-  },
   "mcpServers": {
     "executor": {
       "url": "https://executor.pike-quail.ts.net/mcp",
-      "auth": "bearer",
-      "bearerTokenEnv": "EXECUTOR_MCP_TOKEN",
-      "lifecycle": "lazy",
-      "directTools": true,
-      "approveTools": false
+      "headers": {
+        "Authorization": "Bearer ${EXECUTOR_MCP_TOKEN}"
+      },
+      "exposure": "direct"
     }
   }
 }

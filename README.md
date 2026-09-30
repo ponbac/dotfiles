@@ -90,7 +90,9 @@ Bring those edits back and review them before using SSH deployment.
 
 - Shared skill library and Claude-specific links/variants. Manual invocation
   flags and Codex invocation policies travel with the skills.
-- Pi extensions, selected settings/model overrides, MCP and pinned packages.
+- Pi extensions, selected settings/model overrides, built-in MCP and pinned packages.
+  The retired `pi-mcp-adapter` is not installed. Executor uses native HTTP bearer
+  headers with `${EXECUTOR_MCP_TOKEN}` and direct tool exposure; the token stays local.
 - A shared mise manifest and nonmutating launchers for Pi, Codex, Claude and OpenCode v2.
 - Selected Claude and Codex preferences, MCP entries, and Codex hooks.
 - Clean shared Bash fragment, Git preferences, JJ, Herdr, tmux and Starship.

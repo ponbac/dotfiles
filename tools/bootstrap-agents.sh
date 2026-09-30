@@ -10,6 +10,11 @@ command -v mise >/dev/null
 mise install pi codex claude npm:@opencode/cli
 mise reshim
 command -v pi >/dev/null
+# Built-in MCP replaces pi-mcp-adapter. A removed declaration alone leaves its
+# old npm installation behind, so retire it after chezmoi applies the policy.
+if [[ -d "$HOME/.pi/agent/npm/node_modules/pi-mcp-adapter" ]]; then
+  npm --prefix "$HOME/.pi/agent/npm" uninstall --ignore-scripts --legacy-peer-deps pi-mcp-adapter
+fi
 # Clean up a desktop extension left by the old indiscriminate sync.
 if [[ $(hostname) == dev-1 && -e "$HOME/.pi/agent/extensions/omarchy-system-theme.ts" ]]; then
   backup="$HOME/.local/state/chezmoi-deploy-backups/removed-desktop-extension-$(date +%Y%m%d-%H%M%S)"

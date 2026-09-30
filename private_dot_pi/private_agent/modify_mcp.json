@@ -1,5 +1,22 @@
 {{- /* chezmoi:modify-template */ -}}
 {{- $current := dict -}}
 {{- if .chezmoi.stdin -}}{{- $current = fromJson .chezmoi.stdin -}}{{- end -}}
+{{- /* Remove only the retired adapter fields previously managed here. */ -}}
+{{- $legacy := get $current "settings" -}}
+{{- if kindIs "map" $legacy -}}
+  {{- range list "hostConfigDiscovery" "toolPrefix" "scriptMode" "outputGuard" -}}
+    {{- $_ := unset $legacy . -}}
+  {{- end -}}
+  {{- if eq (len $legacy) 0 -}}{{- $_ := unset $current "settings" -}}{{- end -}}
+{{- end -}}
+{{- $servers := get $current "mcpServers" -}}
+{{- if kindIs "map" $servers -}}
+  {{- $executor := get $servers "executor" -}}
+  {{- if kindIs "map" $executor -}}
+    {{- range list "auth" "bearerTokenEnv" "lifecycle" "directTools" "approveTools" -}}
+      {{- $_ := unset $executor . -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
 {{- $policy := include (joinPath .chezmoi.sourceDir ".chezmoitemplates" "agents" "pi-mcp.json") | fromJson -}}
 {{ mergeOverwrite $current $policy | toPrettyJson }}

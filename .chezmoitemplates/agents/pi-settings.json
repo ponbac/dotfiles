@@ -6,8 +6,7 @@
     },
     "npm:pi-web-access@0.33.0",
     "npm:pi-multi-skills@1.2.1",
-    "npm:pi-skillful@0.4.0",
-    "npm:pi-mcp-adapter@2.26.0"
+    "npm:pi-skillful@0.4.0"
   ],
   "theme": "dark",
   "defaultProvider": "openai-codex",
