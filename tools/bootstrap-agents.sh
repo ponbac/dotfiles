@@ -8,8 +8,13 @@ case "$(hostname)" in omarchy|omarchy-laptop|dev-1) ;; *) echo 'Unknown host' >&
 cd "$HOME"
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 command -v mise >/dev/null
+# Install Plannotator last: its official installer detects the other agents.
 mise install pi codex claude npm:@opencode/cli github:herdrdev/herdr
+mise install github:backnotprop/plannotator
 mise reshim
+# The upstream Pi integration installer records an unversioned package source.
+# Restore our matching package pin while preserving unrelated Pi preferences.
+chezmoi apply "$HOME/.pi/agent/settings.json"
 # Back up local generated files and shared hook configs before reconciliation.
 # Reject config-directory overrides: this setup deliberately manages $HOME.
 python3 - <<'PY'

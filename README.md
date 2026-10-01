@@ -96,6 +96,15 @@ Bring those edits back and review them before using SSH deployment.
 - Shared mise manifests and nonmutating launchers for Pi, Codex, Claude, OpenCode v2
   and Herdr. Herdr is pinned to stable **0.9.3**; the user-level mise install takes
   precedence over Omarchy's older system package without modifying it.
+- Plannotator is pinned to **0.27.24** in `97-plannotator.toml`. Its mise tool-level
+  postinstall runs the official installer from that exact release tag, with
+  noninteractive mode and provenance verification. The installer owns its skills,
+  slash commands and integrations; generated skill copies are excluded from
+  chezmoi. Existing installer preferences (extras/model invocation) stay local.
+  Before installing, local skills/configs are backed up under
+  `~/.local/state/plannotator-install-backups/`. The installer also writes its
+  matching `~/.local/bin/plannotator` copy; the hook verifies both binary versions.
+  The Pi extension pin is kept at the same release and restored after installation.
 - Selected Claude and Codex preferences and an entry-scoped Codex Plannotator hook.
   Herdr owns its generated agent scripts/plugins and its entries in shared hook
   configs. These files are not copied between hosts or overwritten by chezmoi.
@@ -175,6 +184,13 @@ all hosts. Do not run `herdr update` on this mise-managed installation. Existing
 Herdr servers and pane processes are not stopped during installation; reconnect
 clients and restart servers later only when their work can safely be interrupted.
 Restart agent processes to load updated integrations.
+
+For Plannotator, change the mise pin in `97-plannotator.toml` and the matching Pi
+extension pin in `.chezmoitemplates/agents/pi-settings.json`, then sync/bootstrap.
+A real `mise install` or upgrade invokes the official installer automatically;
+an already-installed version is a no-op. To repair its generated skills and
+integrations, use `mise install --force github:backnotprop/plannotator`.
+Do not import or overwrite installer-owned skills with `chezmoi re-add`.
 
 Do not use `mise upgrade opencode`: that registry name is the old v1 backend.
 Do not install these agents globally with npm or the native Claude installer.

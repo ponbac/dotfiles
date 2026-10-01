@@ -2,6 +2,8 @@
 # period for other tools, and leave Omarchy's runtime/PATH ownership unchanged.
 [settings]
 minimum_release_age_excludes = [
+  "plannotator",
+  "github:backnotprop/plannotator",
   "herdr",
   "github:herdrdev/herdr",
   "pi",
