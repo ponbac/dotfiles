@@ -10,8 +10,16 @@
   ],
   "theme": "dark",
   "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-6-astra",
+  "defaultModel": "gpt-6.1-sol",
   "defaultThinkingLevel": "medium",
+  "enabledModels": [
+    "openai-codex/gpt-6.1-sol",
+    "openai-codex/gpt-6-luna",
+    "openai-codex/gpt-6-astra",
+    "anthropic/claude-opus-5-5",
+    "anthropic/claude-fable-5-1",
+    "anthropic/claude-sonnet-5-5"
+  ],
   "enableInstallTelemetry": false,
   "skillful": {
     "hiddenSkills": [
