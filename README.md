@@ -93,8 +93,16 @@ Bring those edits back and review them before using SSH deployment.
 - Pi extensions, selected settings/model overrides, built-in MCP and pinned packages.
   The retired `pi-mcp-adapter` is not installed. Executor uses native HTTP bearer
   headers with `${EXECUTOR_MCP_TOKEN}` and direct tool exposure; the token stays local.
-- A shared mise manifest and nonmutating launchers for Pi, Codex, Claude and OpenCode v2.
-- Selected Claude and Codex preferences and Codex hooks.
+- Shared mise manifests and nonmutating launchers for Pi, Codex, Claude, OpenCode v2
+  and Herdr. Herdr is pinned to stable **0.9.3**; the user-level mise install takes
+  precedence over Omarchy's older system package without modifying it.
+- Selected Claude and Codex preferences and an entry-scoped Codex Plannotator hook.
+  Herdr owns its generated agent scripts/plugins and its entries in shared hook
+  configs. These files are not copied between hosts or overwritten by chezmoi.
+  Explicit bootstrap backs up local integration files/configs, then reconciles
+  Pi, Codex, Claude and OpenCode integrations using the installed Herdr release.
+  Recovery manifests record existing and missing targets under
+  `~/.local/state/herdr-integration-backups/`.
 - Executor-only global MCP configuration for Pi, Claude, Codex and OpenCode v2.
   OpenCode's `opencode.json` owns MCP configuration; `opencode.jsonc` has its MCP
   section removed so it cannot reintroduce servers. Both preserve unrelated settings.
@@ -126,7 +134,8 @@ bash ~/.local/share/chezmoi/tools/bootstrap-agents.sh
 
 Run this on each host after changing Pi package pins, or pass `--bootstrap` to
 the deployment command. It installs the four agents selected by the shared
-mise manifest, reshims, and reconciles the exact versions declared in Pi settings. It also retires the stale desktop-only Pi
+mise manifests, reshims, installs current bundled Herdr integrations, and
+reconciles the exact versions declared in Pi settings. It also retires the stale desktop-only Pi
 extension on `dev-1` into a recovery backup. This is explicit, not an automatic
 network/install hook on every chezmoi apply.
 
@@ -159,6 +168,13 @@ Upgrade only these agents with:
 ```sh
 mise upgrade pi codex claude npm:@opencode/cli
 ```
+
+Herdr upgrades are coordinated separately: update the stable pin in
+`~/.config/mise/conf.d/96-herdr.toml` through its chezmoi source, then sync/bootstrap
+all hosts. Do not run `herdr update` on this mise-managed installation. Existing
+Herdr servers and pane processes are not stopped during installation; reconnect
+clients and restart servers later only when their work can safely be interrupted.
+Restart agent processes to load updated integrations.
 
 Do not use `mise upgrade opencode`: that registry name is the old v1 backend.
 Do not install these agents globally with npm or the native Claude installer.

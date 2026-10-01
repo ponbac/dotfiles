@@ -27,7 +27,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("hosts", nargs="*", help="Default: all three known hosts")
     parser.add_argument("--apply", action="store_true", help="Back up, install source, and apply")
-    parser.add_argument("--bootstrap", action="store_true", help="Also reconcile pinned Pi packages (requires --apply)")
+    parser.add_argument("--bootstrap", action="store_true", help="Also install agents/Herdr and reconcile integrations and pinned Pi packages (requires --apply)")
     args = parser.parse_args()
     if args.bootstrap and not args.apply:
         parser.error("--bootstrap requires --apply")

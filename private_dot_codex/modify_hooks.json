@@ -1,0 +1,22 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- $current := dict -}}
+{{- if .chezmoi.stdin -}}{{- $current = fromJson .chezmoi.stdin -}}{{- end -}}
+{{- $hooks := get $current "hooks" | default dict -}}
+{{- $command := joinPath .chezmoi.homeDir ".local" "bin" "plannotator" -}}
+{{- /* Own only this Plannotator hook, not Herdr or other host-local hooks. */ -}}
+{{- $stop := list -}}
+{{- range get $hooks "Stop" | default list -}}
+  {{- $block := . -}}
+  {{- $kept := list -}}
+  {{- range get $block "hooks" | default list -}}
+    {{- if ne (get . "command") $command -}}{{- $kept = append $kept . -}}{{- end -}}
+  {{- end -}}
+  {{- if gt (len $kept) 0 -}}
+    {{- $_ := set $block "hooks" $kept -}}
+    {{- $stop = append $stop $block -}}
+  {{- end -}}
+{{- end -}}
+{{- $owned := dict "hooks" (list (dict "type" "command" "command" $command "timeout" 345600)) -}}
+{{- $_ := set $hooks "Stop" (append $stop $owned) -}}
+{{- $_ := set $current "hooks" $hooks -}}
+{{ $current | toPrettyJson }}

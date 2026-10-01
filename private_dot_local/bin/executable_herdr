@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Keep Herdr on the shared mise version, ahead of older system/direct installs.
+set -euo pipefail
+exec mise exec github:herdrdev/herdr -- herdr "$@"

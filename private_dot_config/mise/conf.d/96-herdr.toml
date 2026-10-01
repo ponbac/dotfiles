@@ -1,0 +1,4 @@
+# Shared stable Herdr release. Upgrade this pin after verifying a new release.
+# Do not overwrite Omarchy's /usr/bin/herdr package or self-update mise installs.
+[tools]
+"github:herdrdev/herdr" = "0.9.3"

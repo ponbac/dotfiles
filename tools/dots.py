@@ -102,7 +102,7 @@ def sync(args):
         git('merge', '--ff-only', REMOTE, capture=False)
     # Print filenames only. Full modify-template diffs may contain local secrets.
     subprocess.run(['chezmoi', 'status', '--no-pager'], check=True)
-    confirm('Apply this configuration and reconcile pinned Pi packages on this machine?', args.yes)
+    confirm('Apply this configuration and reconcile Herdr integrations and pinned Pi packages on this machine?', args.yes)
     subprocess.run([sys.executable, str(SOURCE / 'tools/deploy.py'), os.uname().nodename,
                     '--apply', '--bootstrap'], check=True)
     print('Synced. Reload/restart running agents to pick up configuration changes.')

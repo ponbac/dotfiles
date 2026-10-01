@@ -1,14 +1,56 @@
 #!/usr/bin/env bash
 # Run AFTER applying chezmoi. Ensure the four mise-managed coding agents and
-# pinned Pi packages exist. Do not change other runtimes, OAuth, or project trust.
+# pinned Pi packages and Herdr integrations exist. Do not change other runtimes,
+# OAuth, or project trust. Herdr owns generated integrations, not chezmoi.
 set -euo pipefail
 case "$(hostname)" in omarchy|omarchy-laptop|dev-1) ;; *) echo 'Unknown host' >&2; exit 1;; esac
 # Bootstrap user-global declarations, not any project the caller is working in.
 cd "$HOME"
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 command -v mise >/dev/null
-mise install pi codex claude npm:@opencode/cli
+mise install pi codex claude npm:@opencode/cli github:herdrdev/herdr
 mise reshim
+# Back up local generated files and shared hook configs before reconciliation.
+# Reject config-directory overrides: this setup deliberately manages $HOME.
+python3 - <<'PY'
+import datetime
+import json
+import os
+from pathlib import Path
+import shutil
+
+home = Path.home()
+for key, expected in {'PI_CODING_AGENT_DIR': home / '.pi/agent',
+                      'CODEX_HOME': home / '.codex',
+                      'CLAUDE_CONFIG_DIR': home / '.claude',
+                      'XDG_CONFIG_HOME': home / '.config'}.items():
+    value = os.environ.get(key)
+    if value and Path(value).expanduser().resolve() != expected.resolve():
+        raise SystemExit(f'Review {key} before installing home-scoped integrations')
+files = ['.pi/agent/extensions/herdr-agent-state.ts',
+         '.codex/herdr-agent-state.sh', '.codex/hooks.json', '.codex/config.toml',
+         '.claude/hooks/herdr-agent-state.sh', '.claude/settings.json',
+         '.config/opencode/plugins/herdr-agent-state.js',
+         '.config/opencode/herdr-tui-session.js', '.config/opencode/herdr-opencode/tui.js',
+         '.config/opencode/tui.json', '.config/opencode/tui.jsonc', '.config/opencode/cli.json']
+backup = home / '.local/state/herdr-integration-backups' / datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+backup.mkdir(parents=True, mode=0o700)
+existing = []
+for name in files:
+    source = home / name
+    if source.exists():
+        target = backup / name
+        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        shutil.copy2(source, target)
+        target.chmod(0o600)
+        existing.append(name)
+(backup / 'manifest.json').write_text(json.dumps({'existing': existing, 'targets': files}, indent=2))
+print('Herdr integration recovery backup:', backup)
+PY
+# Local file installers only: no server stop, live handoff, or pane control.
+for agent in pi codex claude opencode; do
+  mise exec github:herdrdev/herdr -- herdr integration install "$agent"
+done
 command -v pi >/dev/null
 # Built-in MCP replaces pi-mcp-adapter. A removed declaration alone leaves its
 # old npm installation behind, so retire it after chezmoi applies the policy.

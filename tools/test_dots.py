@@ -185,12 +185,15 @@ class DotsCLIIntegrationTests(unittest.TestCase):
         self.assertFalse(self.apply_log.exists())
 
     def test_deploy_reports_partial_failure_and_tries_remaining_hosts(self):
-        self.env['TEST_FAIL_HOST'] = 'ponbac@dev-1'
-        output = self.cli('deploy', 'dev-1', 'omarchy-laptop', succeeds=False)
+        # Exercise two SSH targets regardless of which managed host runs tests.
+        hosts = [host for host in ('dev-1', 'omarchy-laptop', 'omarchy')
+                 if host != os.uname().nodename][:2]
+        self.env['TEST_FAIL_HOST'] = 'ponbac@' + hosts[0]
+        output = self.cli('deploy', *hosts, succeeds=False)
         calls = [json.loads(line) for line in self.ssh_log.read_text().splitlines()]
         self.assertEqual([call['args'][-2] for call in calls],
-                         ['ponbac@dev-1', 'ponbac@omarchy-laptop'])
-        self.assertIn('sync failed on: dev-1', output)
+                         ['ponbac@' + host for host in hosts])
+        self.assertIn('sync failed on: ' + hosts[0], output)
 
     def test_deploy_rejects_unknown_hosts_before_transport(self):
         output = self.cli('deploy', 'unrecognized-host', succeeds=False)
