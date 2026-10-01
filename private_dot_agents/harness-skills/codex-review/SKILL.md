@@ -5,12 +5,10 @@ description: "Second opinion from Codex. Use in Claude Code when the user reques
 
 # Codex second opinion
 
-For Claude Code to review its work using Codex. The runner uses **GPT-6.1-Sol with xhigh reasoning**, with approvals and sandbox bypassed.
+Ask Codex to independently review your work using **GPT-6.1-Sol with xhigh reasoning**.
 
-Before dispatch, read and follow `~/.agents/lib/second-opinion/WORKFLOW.md` in full, expanding `~` to the user's home directory when reading. It owns scope, dispatch completion, and adjudication.
+Read `~/.agents/lib/second-opinion/WORKFLOW.md` for shared review guidance, expanding `~` to the user's home directory.
 
-```bash
-python3 ~/.agents/lib/second-opinion/run.py codex \
-  --repo /absolute/path/to/repository \
-  --brief /absolute/path/to/review-brief.md
-```
+Launch Codex noninteractively with `codex exec`, selecting `--model gpt-6.1-sol`, `-c 'model_reasoning_effort="xhigh"'`, and **`--dangerously-bypass-approvals-and-sandbox`**. Use a fresh session in the relevant repository. Choose how to pass the review prompt and collect its response using the CLI's available options.
+
+Prefer the installed CLI binary if PATH resolves to a mise shim or launcher that delays startup. Keep the requested model and reasoning level when adjusting the invocation.

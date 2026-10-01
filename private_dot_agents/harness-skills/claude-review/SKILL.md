@@ -5,12 +5,10 @@ description: "Second opinion from Claude Code. Use in Codex when the user reques
 
 # Claude second opinion
 
-For Codex to review its work using Claude Code. The runner uses **Opus 5.5 with high effort**, with all permission checks bypassed.
+Ask Claude Code to independently review your work using **Opus 5.5 with high effort**.
 
-Before dispatch, read and follow `~/.agents/lib/second-opinion/WORKFLOW.md` in full, expanding `~` to the user's home directory when reading. It owns scope, dispatch completion, and adjudication.
+Read `~/.agents/lib/second-opinion/WORKFLOW.md` for shared review guidance, expanding `~` to the user's home directory.
 
-```bash
-python3 ~/.agents/lib/second-opinion/run.py claude \
-  --repo /absolute/path/to/repository \
-  --brief /absolute/path/to/review-brief.md
-```
+Launch Claude noninteractively with `--print`, selecting `--model claude-opus-5-5`, `--effort high`, and **`--dangerously-skip-permissions`**. Use a fresh session in the relevant repository. Choose how to pass the review prompt and collect its response using the CLI's available options.
+
+Prefer the installed CLI binary if PATH resolves to a mise shim or launcher that delays startup. Keep the requested model and effort when adjusting the invocation. If Claude rejects the launch as nested, clear `CLAUDECODE` for the child process only.
