@@ -1,0 +1,13 @@
+{
+  "mcp": {
+    "executor": {
+      "type": "remote",
+      "url": "https://executor.pike-quail.ts.net/mcp",
+      "enabled": true,
+      "oauth": false,
+      "headers": {
+        "Authorization": "Bearer {env:EXECUTOR_MCP_TOKEN}"
+      }
+    }
+  }
+}

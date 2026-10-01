@@ -1,5 +1,7 @@
 {{- /* chezmoi:modify-template */ -}}
 {{- $current := dict -}}
 {{- if .chezmoi.stdin -}}{{- $current = fromJson .chezmoi.stdin -}}{{- end -}}
+{{- /* Shared policy owns the entire global MCP server map. */ -}}
+{{- $_ := unset $current "mcpServers" -}}
 {{- $policy := include (joinPath .chezmoi.sourceDir ".chezmoitemplates" "agents" "claude-mcp.json") | fromJson -}}
 {{ mergeOverwrite $current $policy | toPrettyJson }}

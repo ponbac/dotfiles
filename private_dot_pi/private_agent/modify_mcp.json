@@ -9,14 +9,7 @@
   {{- end -}}
   {{- if eq (len $legacy) 0 -}}{{- $_ := unset $current "settings" -}}{{- end -}}
 {{- end -}}
-{{- $servers := get $current "mcpServers" -}}
-{{- if kindIs "map" $servers -}}
-  {{- $executor := get $servers "executor" -}}
-  {{- if kindIs "map" $executor -}}
-    {{- range list "auth" "bearerTokenEnv" "lifecycle" "directTools" "approveTools" -}}
-      {{- $_ := unset $executor . -}}
-    {{- end -}}
-  {{- end -}}
-{{- end -}}
+{{- /* Shared policy owns the entire global MCP server map. */ -}}
+{{- $_ := unset $current "mcpServers" -}}
 {{- $policy := include (joinPath .chezmoi.sourceDir ".chezmoitemplates" "agents" "pi-mcp.json") | fromJson -}}
 {{ mergeOverwrite $current $policy | toPrettyJson }}

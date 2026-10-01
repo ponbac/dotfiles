@@ -1,0 +1,7 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- $current := dict -}}
+{{- if .chezmoi.stdin -}}{{- $current = fromJsonc .chezmoi.stdin -}}{{- end -}}
+{{- /* Shared policy owns the entire global MCP server map. */ -}}
+{{- $_ := unset $current "mcp" -}}
+{{- $policy := include (joinPath .chezmoi.sourceDir ".chezmoitemplates" "agents" "opencode-mcp.json") | fromJson -}}
+{{ mergeOverwrite $current $policy | toPrettyJson }}

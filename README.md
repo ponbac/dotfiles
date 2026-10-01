@@ -94,14 +94,21 @@ Bring those edits back and review them before using SSH deployment.
   The retired `pi-mcp-adapter` is not installed. Executor uses native HTTP bearer
   headers with `${EXECUTOR_MCP_TOKEN}` and direct tool exposure; the token stays local.
 - A shared mise manifest and nonmutating launchers for Pi, Codex, Claude and OpenCode v2.
-- Selected Claude and Codex preferences, MCP entries, and Codex hooks.
+- Selected Claude and Codex preferences and Codex hooks.
+- Executor-only global MCP configuration for Pi, Claude, Codex and OpenCode v2.
+  OpenCode's `opencode.json` owns MCP configuration; `opencode.jsonc` has its MCP
+  section removed so it cannot reintroduce servers. Both preserve unrelated settings.
+  All clients reference the host-local `EXECUTOR_MCP_TOKEN`; no token is synced.
 - Clean shared Bash fragment, Git preferences, JJ, Herdr, tmux and Starship.
 - Omarchy-only user configuration, custom plugins, terminal preferences and
   selected service definitions. Hardware/layout differences use host templates.
 
 Agent `modify_` sources merge selected keys with current settings. They preserve
 host-local tokens, project trust, desktop-generated Codex plugins/marketplaces,
-other MCP servers and unrelated state. Security/permission relaxations are not
+and unrelated state. Global MCP server maps are replaced with executor only,
+including removal of stale executor credentials/options. Project-local MCP
+configuration is outside this policy and remains unmanaged.
+Security/permission relaxations are not
 promoted into shared defaults. Machine-specific runtime state therefore need
 not be byte-identical for shared preferences to be consistent.
 

@@ -1,5 +1,7 @@
 {{- /* chezmoi:modify-template */ -}}
 {{- $current := dict -}}
 {{- if .chezmoi.stdin -}}{{- $current = fromToml .chezmoi.stdin -}}{{- end -}}
+{{- /* Shared policy owns the entire global MCP server map. */ -}}
+{{- $_ := unset $current "mcp_servers" -}}
 {{- $policy := include (joinPath .chezmoi.sourceDir ".chezmoitemplates" "agents" "codex-settings.json") | fromJson -}}
 {{ mergeOverwrite $current $policy | toToml }}

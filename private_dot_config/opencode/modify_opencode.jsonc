@@ -1,0 +1,6 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- $current := dict -}}
+{{- if .chezmoi.stdin -}}{{- $current = fromJsonc .chezmoi.stdin -}}{{- end -}}
+{{- /* MCP is managed in opencode.json; this later source must not override it. */ -}}
+{{- $_ := unset $current "mcp" -}}
+{{ $current | toPrettyJson }}
