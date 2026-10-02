@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Run AFTER applying chezmoi. Ensure the four mise-managed coding agents and
-# pinned Pi packages and Herdr integrations exist. Do not change other runtimes,
+# Run AFTER applying chezmoi. Upgrade the four mise-managed coding agents and
+# ensure pinned Pi packages and Herdr integrations exist. Do not change other runtimes,
 # OAuth, or project trust. Herdr owns generated integrations, not chezmoi.
 set -euo pipefail
 case "$(hostname)" in omarchy|omarchy-laptop|dev-1) ;; *) echo 'Unknown host' >&2; exit 1;; esac
@@ -8,6 +8,17 @@ case "$(hostname)" in omarchy|omarchy-laptop|dev-1) ;; *) echo 'Unknown host' >&
 cd "$HOME"
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 command -v mise >/dev/null
+# Retire all Vite+ launchers, including its runtime and agent shims. Keep the
+# installation and a private recovery backup; do not rewrite host shell files.
+if [[ -e "$HOME/.vite-plus/bin" || -L "$HOME/.vite-plus/bin" ]]; then
+  backup="$HOME/.local/state/vite-plus-launcher-backups/$(date +%Y%m%d-%H%M%S)-$$"
+  mkdir -p -m 700 "$backup"
+  mv "$HOME/.vite-plus/bin" "$backup/bin"
+  printf 'Vite+ launcher recovery backup: %s\n' "$backup"
+fi
+# Refresh only agent release caches and preserve old installs for running agents.
+mise cache clear pi codex claude npm:@opencode/cli
+mise upgrade --yes --no-prune pi codex claude npm:@opencode/cli
 # Install Plannotator last: its official installer detects the other agents.
 mise install pi codex claude npm:@opencode/cli github:herdrdev/herdr
 mise install github:backnotprop/plannotator

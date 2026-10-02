@@ -34,8 +34,8 @@ Wallpaper assets remain separate. Specify the current hostname explicitly if
 you also want to apply locally.
 
 Git commands ask before applying/publishing. Pass `--yes` for an intentional unattended
-run. `dotsync` also reconciles pinned Pi packages on the current machine; it does
-not fan out over SSH. Run it on whichever machine should receive your changes.
+run. `dotsync` also upgrades the four coding agents to latest and reconciles
+pinned Pi packages on the current machine; it does not fan out over SSH. Run it on whichever machine should receive your changes.
 `dotpush` does not apply the source locally; run `dotsync` there too if needed.
 
 Edit files in the chezmoi source (`chezmoi cd`), or use `chezmoi edit <target>`.
@@ -74,7 +74,7 @@ python3 tools/deploy.py dev-1 --apply        # or config only on one host
 Deployment stages the source over SSH, validates rendering, preserves each
 remote's old source/Git history, backs up managed live files and chezmoi state,
 and applies the declared files. `--bootstrap` additionally ensures the four
-mise-managed coding agents are installed and reconciles pinned Pi packages. It does not commit, push, enable services,
+mise-managed coding agents are upgraded to latest and reconciles pinned Pi packages. It does not commit, push, enable services,
 reload the desktop, or synchronize credentials. Requires Python 3.11+, Git,
 rsync, chezmoi and SSH access. Backups are private under
 `~/.local/state/chezmoi-deploy-backups/` on each host. The backup manifest records
@@ -142,8 +142,9 @@ bash ~/.local/share/chezmoi/tools/bootstrap-agents.sh
 ```
 
 Run this on each host after changing Pi package pins, or pass `--bootstrap` to
-the deployment command. It installs the four agents selected by the shared
-mise manifests, reshims, installs current bundled Herdr integrations, and
+the deployment command. It refreshes the four agents' release caches and upgrades
+them to latest without pruning old installs, ensures the shared mise tools are
+installed, reshims, installs current bundled Herdr integrations, and
 reconciles the exact versions declared in Pi settings. It also retires the stale desktop-only Pi
 extension on `dev-1` into a recovery backup. This is explicit, not an automatic
 network/install hook on every chezmoi apply.
@@ -153,6 +154,12 @@ All three machines now use mise as the sole active installer for these agents:
 - `~/.config/mise/conf.d/95-coding-agents.toml` declares Pi, Codex and Claude via
   mise's binary backends, and OpenCode **v2** via `npm:@opencode/cli`.
 - `90-agent-release-policy.toml` exempts these tools from release-age delays.
+- Agent versions remain `latest`, not fixed pins. Each sync/bootstrap checks for
+  current releases; versions can drift between syncs or if a release appears
+  during deployment. Plain `dotpush` publishes only source configuration.
+- Bootstrap retires the entire `~/.vite-plus/bin` launcher directory into a
+  private backup under `~/.local/state/vite-plus-launcher-backups/`. Vite+ runtime
+  and agent launchers must not shadow mise. The rest of Vite+ stays untouched.
 - Claude/OpenCode background auto-updaters are disabled so mise remains the
   update owner. Explicit manual update commands are not blocked.
 - `~/.local/bin/{pi,codex,claude,opencode}` delegates to `mise exec` without
@@ -175,7 +182,8 @@ installed through mise on all three machines.
 Upgrade only these agents with:
 
 ```sh
-mise upgrade pi codex claude npm:@opencode/cli
+mise cache clear pi codex claude npm:@opencode/cli
+mise upgrade --yes --no-prune pi codex claude npm:@opencode/cli
 ```
 
 Herdr upgrades are coordinated separately: update the stable pin in
