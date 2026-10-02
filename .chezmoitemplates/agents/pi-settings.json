@@ -1,7 +1,7 @@
 {
   "packages": [
     {
-      "source": "npm:@plannotator/pi-extension@0.27.24",
+      "source": "npm:@plannotator/pi-extension@0.27.25",
       "skills": []
     },
     "npm:pi-web-access@0.33.0",

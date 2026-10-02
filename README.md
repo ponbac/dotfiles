@@ -96,7 +96,7 @@ Bring those edits back and review them before using SSH deployment.
 - Shared mise manifests and nonmutating launchers for Pi, Codex, Claude, OpenCode v2
   and Herdr. Herdr is pinned to stable **0.9.3**; the user-level mise install takes
   precedence over Omarchy's older system package without modifying it.
-- Plannotator is pinned to **0.27.24** in `97-plannotator.toml`. Its mise tool-level
+- Plannotator is pinned to **0.27.25** in `97-plannotator.toml`. Its mise tool-level
   postinstall runs the official installer from that exact release tag, with
   noninteractive mode and provenance verification. The installer owns its skills,
   slash commands and integrations; generated skill copies are excluded from
