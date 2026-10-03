@@ -1,0 +1,4 @@
+# Retire the custom Pi subagent extension on every managed host.
+{{- if has .chezmoi.hostname (list "omarchy" "omarchy-laptop" "dev-1") }}
+.pi/agent/extensions/subagents
+{{- end }}
