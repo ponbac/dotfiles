@@ -34,6 +34,8 @@ manifests
 .config/foot
 .config/uwsm
 .config/systemd
+.local/share/applications/t3code-nightly.desktop
+.local/share/icons/t3code-nightly-custom.png
 .agents/skills/omarchy
 .agents/skills/diagnose-crash
 .claude/skills/omarchy

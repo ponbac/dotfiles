@@ -205,6 +205,39 @@ Do not install these agents globally with npm or the native Claude installer.
 Pi extension packages remain separately pinned. `DEV.md` retains the original
 runtime audit; this targeted agent consolidation supersedes its initial deferral.
 
+## T3 Code Nightly (Omarchy desktops only)
+
+On `omarchy` and `omarchy-laptop`, chezmoi manages the nightly launcher icon
+and retires the three superseded custom/local-build desktop entries. The
+`modify_` launcher reads `/usr/share/applications/t3code-nightly.desktop` on
+each apply and overrides only `Icon`, preserving the package's current launch
+command, URL schemes and other fields. The selected cloudy Linux/universal
+nightly icon is a deliberately managed branding asset, not a wallpaper or
+installed binary. These paths and removals are excluded on `dev-1` and unknown
+hosts. Local builds and their CLI wrappers remain unmanaged.
+
+Package installation/removal stays explicit; install nightly **before** applying
+these targets (the launcher refuses to render without its packaged source):
+
+```sh
+omarchy pkg add t3code-nightly-bin
+sudo pacman -R t3code-bin                 # only if stable is installed
+chezmoi apply ~/.local/share/icons/t3code-nightly-custom.png ~/.local/share/applications/t3code-nightly.desktop
+update-desktop-database ~/.local/share/applications
+xdg-mime default t3code-nightly.desktop x-scheme-handler/t3code
+xdg-mime default t3code-nightly.desktop x-scheme-handler/t3code-dev
+```
+
+Normal sync/deployment applies the scoped removal policy with its usual backups.
+For manual migration, back up old custom launchers before a full apply. URL
+associations and header artwork remain host-local; choose **Settings → Appearance
+→ Environment identification → Artwork** in T3 Code. No application data,
+credentials, theme selection or client-settings JSON is imported.
+
+Icon provenance: `https://github.com/pingdotgg/t3code`,
+`assets/nightly/nightly-universal-1024.png` (MIT project); launcher icon file:
+`~/.local/share/icons/t3code-nightly-custom.png`.
+
 ## Ayaka and wallpapers
 
 Ayaka revision is recorded in `.chezmoitemplates/desktop/theme-lock.json`.
