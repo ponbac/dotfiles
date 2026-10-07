@@ -33,7 +33,9 @@ BarWidget {
   property date now: new Date()
 
   readonly property bool shown: needsYou.length > 0 || working.length > 0 || done.length > 0
-  readonly property bool cardShown: root.shown && button.tooltipHovered && cardDelay.elapsed
+  // Set over IPC (`omarchy-shell ponbac.t3code show`) to hold the card open.
+  property bool cardPinned: false
+  readonly property bool cardShown: root.shown && (root.cardPinned || (button.tooltipHovered && cardDelay.elapsed))
   readonly property string helperPath: Quickshell.env("HOME") + "/.local/bin/t3code-status"
   readonly property var helperCommand: {
     var command = [root.helperPath, "--watch"]
@@ -66,6 +68,30 @@ BarWidget {
     return Math.floor(hours / 24) + "d" + suffix
   }
 
+  // Nerd Font glyph for a machine chip. `machineIcons` in shell.json maps a
+  // hostname to "desktop", "laptop" or "server"; otherwise guess from the name.
+  function machineGlyph(host) {
+    var glyphs = { desktop: "\uDB80\uDF79", laptop: "\uDB80\uDF22", server: "\uDB81\uDC8B" }
+    var icons = setting("machineIcons", {})
+    var kind = icons && icons[host] ? String(icons[host]) : ""
+    if (!glyphs[kind]) kind = /laptop/i.test(host) ? "laptop" : (/dev|server|box|vps/i.test(host) ? "server" : "desktop")
+    return glyphs[kind]
+  }
+
+  function providerIcon(provider) {
+    if (/claude/i.test(provider)) return Qt.resolvedUrl("icons/claude.svg")
+    if (/codex|openai/i.test(provider)) return Qt.resolvedUrl("icons/openai.svg")
+    return ""
+  }
+
+  // "claude-opus-5-5" reads as "opus-5.5"; other ids are shown as they are.
+  function shortModel(model) {
+    return String(model || "").replace(/\[.*\]$/, "").replace(/^claude-/, "").replace(/-(\d+)-(\d+)$/, "-$1.$2")
+  }
+
+  function pinCard() { root.cardPinned = true; root.now = new Date() }
+  function unpinCard() { root.cardPinned = false }
+
   function focusApp() {
     Quickshell.execDetached(["omarchy-hyprland-focus-app", root.windowClass])
   }
@@ -73,6 +99,13 @@ BarWidget {
   visible: root.shown
   implicitWidth: visible ? pill.implicitWidth + Style.space(8) : 0
   implicitHeight: visible ? barSize : 0
+
+  IpcHandler {
+    target: "ponbac.t3code"
+
+    function show(): void { root.broadcast("pinCard") }
+    function hide(): void { root.broadcast("unpinCard") }
+  }
 
   // The helper stays running, merges this machine with the remotes' feeds,
   // and prints a record only when something changes.
@@ -207,6 +240,57 @@ BarWidget {
     }
   }
 
+  // Small labelled tag in a card row: a glyph or an image, then text.
+  component Chip: Rectangle {
+    id: chip
+
+    property string glyph: ""
+    property url image: ""
+    property string label: ""
+
+    visible: label !== ""
+    implicitWidth: chipContent.implicitWidth + Style.space(12)
+    implicitHeight: Style.space(16)
+    radius: Style.space(4)
+    color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+
+    Row {
+      id: chipContent
+      anchors.centerIn: parent
+      spacing: Style.space(6)
+
+      Text {
+        visible: chip.glyph !== ""
+        anchors.verticalCenter: parent.verticalCenter
+        text: chip.glyph
+        color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.75)
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+        renderType: Text.NativeRendering
+      }
+
+      Image {
+        visible: chip.image.toString() !== ""
+        anchors.verticalCenter: parent.verticalCenter
+        source: chip.image
+        width: Style.space(10)
+        height: width
+        sourceSize.width: width * 3
+        sourceSize.height: height * 3
+        smooth: true
+      }
+
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: chip.label
+        color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.75)
+        font.family: root.fontFamily
+        font.pixelSize: Math.max(8, Style.font.caption - 1)
+        renderType: Text.NativeRendering
+      }
+    }
+  }
+
   // One neutral pill; a segment per non-empty group, split by hairlines.
   Rectangle {
     id: pill
@@ -282,7 +366,7 @@ BarWidget {
   PopupWindow {
     id: card
 
-    readonly property int cardWidth: Style.space(330)
+    readonly property int cardWidth: Style.space(410)
 
     visible: root.cardShown
     color: "transparent"
@@ -376,20 +460,42 @@ BarWidget {
             Repeater {
               model: section.rows
 
+              // Two lines: badge, title and age; then project and chips.
               Item {
                 id: row
 
                 required property var modelData
+                readonly property color badgeColor: modelData.badgeColor || root.foreground
 
                 width: section.width
-                height: Style.space(20)
+                height: Style.space(38)
+
+                Rectangle {
+                  id: badge
+                  x: Style.space(6)
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Style.space(26)
+                  height: width
+                  radius: Style.space(6)
+                  color: Qt.rgba(row.badgeColor.r, row.badgeColor.g, row.badgeColor.b, 0.15)
+
+                  Text {
+                    anchors.centerIn: parent
+                    text: String(row.modelData.badge || "")
+                    color: row.badgeColor
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    font.weight: Font.Black
+                    renderType: Text.NativeRendering
+                  }
+                }
 
                 Text {
                   id: rowAge
                   anchors.right: parent.right
                   anchors.rightMargin: Style.space(6)
-                  anchors.verticalCenter: parent.verticalCenter
-                  text: (row.modelData.host ? row.modelData.host + " · " : "") + root.age(row.modelData.since, section.modelData.suffix)
+                  anchors.baseline: rowTitle.baseline
+                  text: root.age(row.modelData.since, section.modelData.suffix)
                   color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45)
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
@@ -397,11 +503,12 @@ BarWidget {
                 }
 
                 Text {
-                  anchors.left: parent.left
-                  anchors.leftMargin: Style.space(21)
+                  id: rowTitle
+                  anchors.left: badge.right
+                  anchors.leftMargin: Style.space(9)
                   anchors.right: rowAge.left
                   anchors.rightMargin: Style.space(10)
-                  anchors.verticalCenter: parent.verticalCenter
+                  y: Style.space(4)
                   text: String(row.modelData.title || "")
                   textFormat: Text.PlainText
                   elide: Text.ElideRight
@@ -410,12 +517,45 @@ BarWidget {
                   font.pixelSize: Style.font.bodySmall
                   renderType: Text.NativeRendering
                 }
+
+                Row {
+                  id: rowChips
+                  anchors.right: parent.right
+                  anchors.rightMargin: Style.space(6)
+                  anchors.bottom: parent.bottom
+                  anchors.bottomMargin: Style.space(3)
+                  spacing: Style.space(5)
+
+                  Chip {
+                    glyph: root.machineGlyph(String(row.modelData.host || ""))
+                    label: String(row.modelData.host || "")
+                  }
+
+                  Chip {
+                    image: root.providerIcon(String(row.modelData.provider || ""))
+                    label: root.shortModel(row.modelData.model)
+                  }
+                }
+
+                Text {
+                  anchors.left: rowTitle.left
+                  anchors.right: rowChips.left
+                  anchors.rightMargin: Style.space(10)
+                  anchors.verticalCenter: rowChips.verticalCenter
+                  text: String(row.modelData.project || "")
+                  textFormat: Text.PlainText
+                  elide: Text.ElideRight
+                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45)
+                  font.family: root.fontFamily
+                  font.pixelSize: Math.max(8, Style.font.caption - 1)
+                  renderType: Text.NativeRendering
+                }
               }
             }
 
             Text {
               visible: section.hidden > 0
-              x: Style.space(21)
+              x: Style.space(41)
               height: Style.space(20)
               verticalAlignment: Text.AlignVCenter
               text: "+" + section.hidden + " more"
