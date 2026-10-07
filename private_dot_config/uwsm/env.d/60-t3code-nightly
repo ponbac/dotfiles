@@ -1,0 +1,2 @@
+# One update owner: stage immutable AppImages; never native quit-and-install.
+export T3CODE_DISABLE_AUTO_UPDATE=true

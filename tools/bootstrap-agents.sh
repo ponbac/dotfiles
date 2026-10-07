@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Run AFTER applying chezmoi. Upgrade the four mise-managed coding agents and
-# ensure pinned Pi packages and Herdr integrations exist. Do not change other runtimes,
-# OAuth, or project trust. Herdr owns generated integrations, not chezmoi.
+# ensure pinned Pi packages and Herdr integrations exist; stage the desktop T3
+# nightly on Omarchy hosts. Do not change other runtimes, OAuth, or project trust.
+# Herdr owns generated integrations, not chezmoi.
 set -euo pipefail
 case "$(hostname)" in omarchy|omarchy-laptop|dev-1) ;; *) echo 'Unknown host' >&2; exit 1;; esac
 # Bootstrap user-global declarations, not any project the caller is working in.
@@ -104,3 +105,12 @@ for entry in settings.get('packages', []):
         raise SystemExit(f'Package reconciliation failed: {name}, expected {version}, got {actual}')
     print(f'{name}: {version} verified')
 PY
+# Desktop T3 uses the same explicit sync workflow, with its own upstream update
+# owner rather than mise's CLI backends. Only stage; never restart working T3.
+case "$(hostname)" in
+  omarchy|omarchy-laptop)
+    t3code-nightly-update
+    systemctl --user daemon-reload
+    systemctl --user enable --now t3code-nightly-update.timer
+    ;;
+esac

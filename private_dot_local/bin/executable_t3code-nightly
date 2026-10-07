@@ -1,0 +1,33 @@
+#!/bin/bash
+# The staged AppImage is the only desktop binary; updates apply on next launch.
+set -euo pipefail
+image="$HOME/.local/share/t3code-nightly/current.AppImage"
+if [[ ! -x "$image" ]]; then
+  printf 'No T3 nightly staged. Run: t3code-nightly-update\n' >&2
+  exit 1
+fi
+# The nightly/login staging job owns updates, including URL-handler launches.
+export T3CODE_DISABLE_AUTO_UPDATE=true
+
+user_flags=()
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+flags_file="$config_home/t3code-nightly-flags.conf"
+if [[ -f "$flags_file" && -r "$flags_file" ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%%#*}"
+    [[ -n "${line//[[:space:]]/}" ]] || continue
+    read -r -a flags <<<"$line"
+    user_flags+=("${flags[@]}")
+  done <"$flags_file"
+fi
+
+platform_flags=()
+if [[ -n "${WAYLAND_DISPLAY:-}" || "${XDG_SESSION_TYPE:-}" == wayland ]]; then
+  platform_flags=(--ozone-platform=wayland)
+  for flag in "${user_flags[@]}" "$@"; do
+    case "$flag" in
+      --ozone-platform=* | --ozone-platform-hint=*) platform_flags=() ;;
+    esac
+  done
+fi
+exec "$image" "${platform_flags[@]}" "${user_flags[@]}" "$@"

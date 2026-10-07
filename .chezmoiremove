@@ -6,6 +6,5 @@
 # Retire only the superseded custom T3 Code launchers on Omarchy desktops.
 {{- if has .chezmoi.hostname (list "omarchy" "omarchy-laptop") }}
 .local/share/applications/t3code.desktop
-.local/share/applications/com.t3tools.T3Code.desktop
 .local/share/applications/t3code-url-handler.desktop
 {{- end }}

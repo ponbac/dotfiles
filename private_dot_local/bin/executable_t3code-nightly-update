@@ -1,0 +1,268 @@
+#!/usr/bin/python3
+"""Stage verified T3 Code nightlies for the next launch; never touch running apps.
+
+Images are retained under ~/.local/share/t3code-nightly/versions. Only the
+current.AppImage symlink moves. --check and --status never write local files.
+--release accepts an exact version without the tag's leading 'v'.
+"""
+
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import socket
+import subprocess
+import sys
+import tempfile
+import uuid
+
+SCRIPT_VERSION = '1.0.0'
+REPOSITORY = 'https://github.com/pingdotgg/t3code'
+API = 'https://api.github.com/repos/pingdotgg/t3code/releases'
+MAX_PAGES = 10
+PAGE_SIZE = 100
+MAX_SIZE = 1024 ** 3
+METADATA_SIZE = 16 * 1024 * 1024
+VERSION = re.compile(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-nightly\.([0-9]{8})\.(0|[1-9][0-9]*)')
+
+
+class UpdateError(Exception):
+    pass
+
+
+def version_key(version):
+    match = VERSION.fullmatch(version)
+    if not match:
+        raise UpdateError(f'Not an exact versioned nightly: {version!r}')
+    return tuple(int(part) for part in match.groups())
+
+
+def architecture():
+    if socket.gethostname() not in ('omarchy', 'omarchy-laptop'):
+        raise UpdateError('Only omarchy and omarchy-laptop may use this desktop updater')
+    machine = platform.machine()
+    arches = {'x86_64': 'x86_64', 'aarch64': 'arm64', 'arm64': 'arm64'}
+    if machine not in arches:
+        raise UpdateError(f'Unsupported architecture: {machine}')
+    return arches[machine]
+
+
+def curl(url, max_size, max_time, output=None):
+    # Disable curlrc: transport policy must not inherit credentials or output rules.
+    command = ['curl', '--disable', '--fail', '--location', '--silent', '--show-error',
+               '--connect-timeout', '10', '--max-time', str(max_time), '--retry', '2',
+               '--proto', '=https', '--proto-redir', '=https',
+               '--max-filesize', str(max_size), '--user-agent', 't3code-nightly-update']
+    if output is None:
+        command += ['--header', 'Accept: application/vnd.github+json',
+                    '--header', 'X-GitHub-Api-Version: 2022-11-28']
+    else:
+        command += ['--output', str(output)]
+    command += ['--url', url]
+    result = subprocess.run(command, stdout=subprocess.PIPE if output is None else subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL)
+    if result.returncode:
+        # Do not persist/echo redirect headers, signed URLs or curl diagnostics.
+        raise UpdateError(f'curl transfer failed (exit {result.returncode})')
+    return result.stdout
+
+
+def metadata(url):
+    body = curl(url, METADATA_SIZE, 60)
+    if len(body) > METADATA_SIZE:
+        raise UpdateError('GitHub release response is too large')
+    return json.loads(body)
+
+
+def discover_release(exact=None):
+    """Use an exact tag endpoint, or scan a bounded listing regardless of ordering."""
+    if exact is not None:
+        release = metadata(f'{API}/tags/v{exact}')
+        if (not isinstance(release, dict) or release.get('draft') is not False
+                or release.get('tag_name') != f'v{exact}'):
+            raise UpdateError('GitHub did not return the exact non-draft nightly release')
+        return exact, release
+    candidates = []
+    for page in range(1, MAX_PAGES + 1):
+        releases = metadata(f'{API}?per_page={PAGE_SIZE}&page={page}')
+        if not isinstance(releases, list):
+            raise UpdateError('GitHub did not return a release list')
+        for release in releases:
+            if not isinstance(release, dict) or release.get('draft') is not False:
+                continue
+            tag = release.get('tag_name', '')
+            if not isinstance(tag, str) or not tag.startswith('v'):
+                continue
+            version = tag[1:]
+            if VERSION.fullmatch(version):
+                candidates.append((version_key(version), version, release))
+        if len(releases) < PAGE_SIZE:
+            break
+    if not candidates:
+        raise UpdateError('No matching versioned nightly found in the bounded release listing')
+    _, version, release = max(candidates, key=lambda candidate: candidate[0])
+    return version, release
+
+
+def release_asset(version, release, arch):
+    name = f'T3-Code-{version}-{arch}.AppImage'
+    assets = release.get('assets')
+    if not isinstance(assets, list):
+        raise UpdateError('Release has no asset list')
+    matches = [asset for asset in assets
+               if isinstance(asset, dict) and asset.get('name') == name]
+    if len(matches) != 1:
+        raise UpdateError(f'Expected exactly one asset named {name}')
+    asset = matches[0]
+    url = f'{REPOSITORY}/releases/download/v{version}/{name}'
+    if asset.get('browser_download_url') != url:
+        raise UpdateError('Asset download URL is not the exact upstream tag/name URL')
+    size = asset.get('size')
+    if type(size) is not int or not 1 <= size <= MAX_SIZE:
+        raise UpdateError('Asset size must be between 1 byte and 1 GiB')
+    digest = asset.get('digest')
+    if not isinstance(digest, str) or not re.fullmatch(r'sha256:[0-9a-fA-F]{64}', digest):
+        raise UpdateError('GitHub API SHA256 digest is required')
+    return name, url, size, digest[7:].lower()
+
+
+def file_digest(path):
+    digest = hashlib.sha256()
+    with path.open('rb') as image:
+        for chunk in iter(lambda: image.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def current_image(root):
+    link = root / 'current.AppImage'
+    if not os.path.lexists(link):
+        return None
+    if not link.is_symlink():
+        raise UpdateError('current.AppImage is not a managed symlink')
+    target = Path(os.readlink(link))
+    parts = target.parts
+    if (target.is_absolute() or len(parts) != 3 or parts[0] != 'versions'
+            or not VERSION.fullmatch(parts[1])
+            or parts[2] not in (f'T3-Code-{parts[1]}-x86_64.AppImage',
+                                f'T3-Code-{parts[1]}-arm64.AppImage')):
+        raise UpdateError('current.AppImage has an unmanaged target')
+    image = root / target
+    if image.is_symlink() or not image.is_file():
+        raise UpdateError('Current image is missing or is not a regular file')
+    return parts[1], image
+
+
+def sync_directory(path):
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def stage_image(root, version, asset):
+    name, url, size, checksum = asset
+    directory = root / 'versions' / version
+    directory.mkdir(parents=True, exist_ok=True)
+    image = directory / name
+    if os.path.lexists(image):
+        if (image.is_symlink() or not image.is_file() or image.stat().st_size != size
+                or file_digest(image) != checksum or not os.access(image, os.X_OK)):
+            raise UpdateError('Existing version differs from the verified asset; refusing to overwrite')
+        return image, False
+    descriptor, temporary = tempfile.mkstemp(prefix='.download-', dir=directory)
+    temporary = Path(temporary)
+    try:
+        with os.fdopen(descriptor, 'wb') as output:
+            curl(url, size, 600, temporary)
+            received = os.fstat(output.fileno()).st_size
+            if received > size:
+                raise UpdateError('Download exceeds asset size')
+            if received != size:
+                raise UpdateError('Partial download: size does not match asset metadata')
+            if file_digest(temporary) != checksum:
+                raise UpdateError('Download SHA256 checksum mismatch')
+            output.flush()
+            os.fchmod(output.fileno(), 0o555)
+            os.fsync(output.fileno())
+        # Hard-link publishes complete bytes atomically and never clobbers a version.
+        os.link(temporary, image)
+        sync_directory(directory)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return image, True
+
+
+def promote(root, image):
+    temporary = root / f'.current-{uuid.uuid4().hex}'
+    try:
+        temporary.symlink_to(image.relative_to(root))
+        os.replace(temporary, root / 'current.AppImage')
+        sync_directory(root)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def update(root, arch, args):
+    current = current_image(root)
+    version, release = discover_release(args.release)
+    asset = release_asset(version, release, arch)
+    if current and version_key(version) < version_key(current[0]):
+        raise UpdateError(f'Refusing downgrade from {current[0]} to {version}')
+    if args.check:
+        state = 'already current' if current and current[0] == version else 'available'
+        print(f'Nightly {version} ({arch}) {state}; verified metadata, no download or local changes.')
+        return
+    image, downloaded = stage_image(root, version, asset)
+    if current is None or current[1] != image:
+        promote(root, image)
+    action = 'Downloaded' if downloaded else 'Already staged'
+    print(f'{action} nightly {version}; ready for next launch. No active work interrupted.')
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument('--check', action='store_true', help='report candidate without writing or downloading')
+    modes.add_argument('--status', action='store_true', help='report current image and metadata offline')
+    parser.add_argument('--release', help='stage/check this exact nightly version (without leading v)')
+    parser.add_argument('--version', action='version', version=f'%(prog)s {SCRIPT_VERSION}')
+    args = parser.parse_args(argv)
+    if args.status and args.release:
+        parser.error('--release cannot be combined with --status')
+    try:
+        arch = architecture()
+        if args.release:
+            version_key(args.release)
+        root = Path.home() / '.local/share/t3code-nightly'
+        if args.status:
+            current = current_image(root)
+            if current:
+                version, image = current
+                print(f'Current nightly: {version}\nTarget: {image}\nSize: {image.stat().st_size} bytes'
+                      f'\nSHA256: {file_digest(image)}')
+            else:
+                print('No nightly staged; current.AppImage is absent.')
+        elif args.check:
+            update(root, arch, args)
+        else:
+            root.mkdir(parents=True, exist_ok=True)
+            with (root / '.update.lock').open('a') as lock:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    raise UpdateError('Another nightly update holds the lock') from None
+                update(root, arch, args)
+        return 0
+    except (UpdateError, OSError, ValueError) as error:
+        print(f't3code-nightly-update: {error}', file=sys.stderr)
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

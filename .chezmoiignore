@@ -34,6 +34,10 @@ manifests
 .config/foot
 .config/uwsm
 .config/systemd/user/omarchy-agent-usage-cursor.*
+.config/systemd/user/t3code-nightly-update.*
+.config/environment.d/60-t3code-nightly.conf
+.local/bin/t3code-nightly
+.local/bin/t3code-nightly-update
 .local/share/applications/t3code-nightly.desktop
 .local/share/icons/t3code-nightly-custom.png
 .agents/skills/omarchy

@@ -1,0 +1,11 @@
+[Unit]
+Description=Check T3 Code nightlies daily and after the user manager starts
+
+[Timer]
+OnStartupSec=2min
+OnCalendar=*-*-* 03:00:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -74,8 +74,10 @@ python3 tools/deploy.py dev-1 --apply        # or config only on one host
 Deployment stages the source over SSH, validates rendering, preserves each
 remote's old source/Git history, backs up managed live files and chezmoi state,
 and applies the declared files. `--bootstrap` additionally ensures the four
-mise-managed coding agents are upgraded to latest and reconciles pinned Pi packages. It does not commit, push, enable services,
-reload the desktop, or synchronize credentials. Requires Python 3.11+, Git,
+mise-managed coding agents are upgraded to latest, reconciles pinned Pi packages,
+and on Omarchy desktops stages the T3 nightly and enables its update timer.
+It does not commit, push, enable unrelated services, reload the desktop, or
+synchronize credentials. Requires Python 3.11+, Git,
 rsync, chezmoi and SSH access. Backups are private under
 `~/.local/state/chezmoi-deploy-backups/` on each host. The backup manifest records
 which targets previously existed; restore existing targets from `targets/` and
@@ -207,32 +209,83 @@ runtime audit; this targeted agent consolidation supersedes its initial deferral
 
 ## T3 Code Nightly (Omarchy desktops only)
 
-On `omarchy` and `omarchy-laptop`, chezmoi manages the nightly launcher icon
-and retires the three superseded custom/local-build desktop entries. The
-`modify_` launcher reads `/usr/share/applications/t3code-nightly.desktop` on
-each apply and overrides only `Icon`, preserving the package's current launch
-command, URL schemes and other fields. The selected cloudy Linux/universal
-nightly icon is a deliberately managed branding asset, not a wallpaper or
-installed binary. These paths and removals are excluded on `dev-1` and unknown
-hosts. Local builds and their CLI wrappers remain unmanaged.
+`omarchy` and `omarchy-laptop` use upstream **AppImages**, not the lagging
+`t3code-nightly-bin` packages. Chezmoi manages the launcher/icon, updater and
+user timer, never the downloaded images or T3 runtime data. Everything is
+excluded on `dev-1` and unknown hosts; dev-1 retains its independent CLI updater.
 
-Package installation/removal stays explicit; install nightly **before** applying
-these targets (the launcher refuses to render without its packaged source):
+- `~/.local/bin/t3code-nightly-update` selects strictly versioned Nightly releases
+  from `pingdotgg/t3code`, excluding Stable/Preview/PR builds. It requires the
+  exact upstream asset URL, size and GitHub SHA-256 digest, verifies the streamed
+  download and publishes it atomically under
+  `~/.local/share/t3code-nightly/versions/<version>/`. A lock prevents overlapping
+  jobs. Checks/downloads fail closed; existing verified files are never overwritten.
+- `current.AppImage` is an atomic symlink. Updating changes **only the next
+  managed-launcher launch**, never quits/relaunches T3 or its agents, and never downgrades. Previous
+  images are retained; there is no unattended deletion. Check disk periodically
+  (about 160 MB per staged release) and review old images before manual cleanup.
+- `~/.local/bin/t3code-nightly` launches the image and preserves the package's
+  Wayland behavior and optional `~/.config/t3code-nightly-flags.conf` arguments.
+  The managed desktop entry uses this absolute launcher and the existing custom
+  icon. No package launcher is required after migration.
+- `t3code-nightly-update.timer` checks daily at **03:00 local time**, with up to
+  ten minutes of jitter, and two minutes after the user manager starts (login,
+  or boot if linger is enabled). `Persistent=true` catches missed calendar runs;
+  it does not wake a sleeping computer. The job works while T3 is closed.
+- One update owner: `T3CODE_DISABLE_AUTO_UPDATE=true` is set by the wrapper,
+  `environment.d` and UWSM configuration. This also disables T3's native manual
+  updater; use the staging command below. Session-wide inheritance matters
+  because T3 generates a hidden URL-handler entry that launches the image
+  directly. That generated entry is **not** managed or removed by chezmoi.
+  **URL-only launch caveat:** T3 pins that handler to the version it last ran
+  and can reclaim the MIME default. A URL can therefore start an older image
+  instead of the staged one, bypassing wrapper flags. Open T3 from the managed
+  application launcher first when activating an update; do not rely on a URL
+  alone to activate it. The generated handler is refreshed by that launch.
+
+After applying these targets, provision/activate with:
 
 ```sh
-omarchy pkg add t3code-nightly-bin
-sudo pacman -R t3code-bin                 # only if stable is installed
-chezmoi apply ~/.local/share/icons/t3code-nightly-custom.png ~/.local/share/applications/t3code-nightly.desktop
+t3code-nightly-update                       # download/stage; does not launch T3
+t3code-nightly-update --check               # metadata-only check
+t3code-nightly-update --status              # installed pointer/version, offline
+systemctl --user daemon-reload
+systemctl --user enable --now t3code-nightly-update.timer
+journalctl --user -u t3code-nightly-update.service -n 30
+```
+
+At an idle point, **log out and back in** to activate the UWSM/session environment.
+Existing browser/desktop processes do not gain new environment variables from
+`daemon-reload`; their direct URL launches can otherwise enable native updates.
+The managed wrapper disables native updates immediately, even in an old session.
+Verify the fresh session with `printenv T3CODE_DISABLE_AUTO_UPDATE` (`true`) and
+`systemctl --user show-environment | grep '^T3CODE_DISABLE_AUTO_UPDATE='`.
+
+Explicit `dotsync`/bootstrap also stages T3 and enables this timer on desktops,
+so it updates alongside the mise-managed agents without putting AppImages into
+mise or creating a second installer. Plain `chezmoi apply` does not enable it.
+The native update channel defaults to Nightly because the selected binary is
+Nightly; no runtime settings JSON or credentials are imported into this repo.
+
+For initial migration, snapshot the T3 profile/database and launchers, stage and
+verify the image, then close T3 at an idle point before removing its package.
+Never remove package files under active agents. Preserve `~/.t3` and
+`~/.config/t3code-v2`; the AppImage uses those same directories. Existing threads
+must be migrated by T3 itself, not copied between environments. Reopen T3 and
+verify its local backend and UI; client/server protocol mismatches can require
+updating the other side. URL associations and header artwork remain host-local:
+
+```sh
 update-desktop-database ~/.local/share/applications
 xdg-mime default t3code-nightly.desktop x-scheme-handler/t3code
 xdg-mime default t3code-nightly.desktop x-scheme-handler/t3code-dev
 ```
 
-Normal sync/deployment applies the scoped removal policy with its usual backups.
-For manual migration, back up old custom launchers before a full apply. URL
-associations and header artwork remain host-local; choose **Settings → Appearance
-→ Environment identification → Artwork** in T3 Code. No application data,
-credentials, theme selection or client-settings JSON is imported.
+Rollback requires the preserved runtime snapshot if a newer release migrated
+its database; an older image alone is not a safe database downgrade. Source/live
+migration backups live outside this repo under
+`~/.local/state/t3code-appimage-migration/`. No automatic backup deletion occurs.
+Package removal is explicit; do not remove unrelated packages or dependencies.
 
 Icon provenance: `https://github.com/pingdotgg/t3code`,
 `assets/nightly/nightly-universal-1024.png` (MIT project); launcher icon file:
@@ -303,8 +356,9 @@ OAuth/API secrets, authentication stores, histories, session databases, caches,
 logs, project trust, Herdr workspaces, installed binaries/plugin caches, backups,
 generated Omarchy state, old Hyprland configuration and package-owned defaults.
 Desktop Toki's development-checkout symlink remains unmanaged; laptop plugin
-source is managed. Service activation and missing application dependencies are
-not silently provisioned.
+source is managed. Unrelated service activation and missing application dependencies
+are not silently provisioned. The explicit desktop bootstrap's T3 updater timer
+is the documented exception.
 
 See `DEV.md` and `DESKTOP.md` for inventory and preserved host differences. Their
 original source-path inventories predate the private top-level directory prefixes.
