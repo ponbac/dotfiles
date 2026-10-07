@@ -396,7 +396,7 @@ BarWidget {
       width: card.cardWidth
       implicitHeight: cardColumn.implicitHeight + Style.space(12)
       radius: Style.space(9)
-      color: Qt.rgba(10 / 255, 10 / 255, 18 / 255, 0.9)
+      color: Qt.rgba(10 / 255, 10 / 255, 18 / 255, 1)
       border.width: 1
       border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.22)
 
