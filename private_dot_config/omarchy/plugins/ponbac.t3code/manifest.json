@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "ponbac.t3code",
+  "name": "T3 Code",
+  "version": "1.0.0",
+  "author": "ponbac",
+  "description": "T3 Code threads that need you or are working, click focuses the app",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "Widget.qml"
+  },
+  "barWidget": {
+    "displayName": "T3 Code",
+    "description": "Threads waiting on you and threads working",
+    "category": "Agents",
+    "allowMultiple": false,
+    "defaultSection": "center"
+  }
+}

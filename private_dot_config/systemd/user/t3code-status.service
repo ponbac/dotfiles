@@ -1,0 +1,11 @@
+[Unit]
+Description=T3 Code thread status feed for the Omarchy bar (tailnet only)
+After=network-online.target tailscaled.service
+
+[Service]
+ExecStart=%h/.local/bin/t3code-status --serve
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -238,6 +238,35 @@ Icon provenance: `https://github.com/pingdotgg/t3code`,
 `assets/nightly/nightly-universal-1024.png` (MIT project); launcher icon file:
 `~/.local/share/icons/t3code-nightly-custom.png`.
 
+## T3 Code thread status in the bar
+
+`ponbac.t3code` is a bar widget on `omarchy` and `omarchy-laptop`: one pill
+counting T3 Code threads that need you, are working, or are done, with a hover
+card listing them. A click focuses the T3 Code window.
+
+Each machine only knows its own T3 Code server, so every host (including
+`dev-1`) can publish its status and each bar merges the others in:
+
+- `~/.local/bin/t3code-status` reads the local server's state DB read-only.
+  `--serve` publishes it as JSON on port 37731 of the machine's **Tailscale
+  address only**; `--watch --peer <host>` is what the widget runs.
+- `~/.config/systemd/user/t3code-status.service` runs `--serve`. Chezmoi installs
+  the unit but does not enable it. Once per machine:
+
+  ```sh
+  systemctl --user daemon-reload
+  systemctl --user enable --now t3code-status.service
+  ```
+
+- The widget's `remotes` list in each host's `shell.json` names the other
+  machines. An unreachable or sleeping machine simply drops out of the counts.
+
+No ssh, keys or tokens are involved. The tailnet is the access boundary: any
+device on it can read thread titles from that port unless a Tailscale ACL
+restricts it. Omarchy's firewall must allow the port on `tailscale0` if it
+blocks tailnet traffic. The script reads T3 Code's internal projection tables,
+so a T3 Code schema change can blank the widget until the queries are updated.
+
 ## Ayaka and wallpapers
 
 Ayaka revision is recorded in `.chezmoitemplates/desktop/theme-lock.json`.

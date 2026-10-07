@@ -1,0 +1,286 @@
+#!/usr/bin/python3
+"""Report T3 Code thread status for the ponbac.t3code Omarchy bar widget.
+
+Reads this machine's T3 Code server state read-only and reports three groups,
+each a list of `{title, since}`:
+
+  needsYou  threads blocked on a pending approval or question
+  working   threads with a run in progress
+  done      threads whose latest run completed after they were last opened
+
+The groups mirror the status pill in the T3 Code sidebar. Subagent threads
+count as their root thread, a thread appears in one group only, and settled
+or snoozed threads are left out of `done` the way the sidebar hides them.
+
+Modes:
+  (none)    print this machine's record once
+  --serve   serve this machine's record over HTTP on its Tailscale address,
+            so other machines' bars can include it without ssh
+  --watch   print a merged record (this machine plus every --peer feed, each
+            item tagged with `host`) whenever it changes; the widget runs this
+
+The tables are T3 Code internals, not a public contract. A read failure
+reports `error` and an unreachable peer is left out, so the widget shows
+fewer threads rather than stale ones. Standard library only: the same file
+runs on the Omarchy desktops and on the Ubuntu dev server.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sqlite3
+import subprocess
+import sys
+import threading
+import time
+import urllib.request
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
+
+ACTIVE_RUN_STATUSES = ("preparing", "queued", "starting", "running", "waiting")
+# Pending requests the server answers itself; the user is never asked.
+INTERNAL_REQUEST_KINDS = ("dynamic_tool_call", "auth_refresh")
+GROUPS = ("needsYou", "working", "done")
+
+FEED_PORT = 37731
+WATCH_INTERVAL_SECONDS = 2.0
+HEARTBEAT_SECONDS = 20.0
+PEER_POLL_SECONDS = 4.0
+PEER_TIMEOUT_SECONDS = 3.0
+SERVE_CACHE_SECONDS = 1.0
+
+ROOT_THREAD = "coalesce(json_extract(t.payload_json, '$.lineage.rootThreadId'), t.thread_id)"
+LIVE_THREAD = "t.archived_at is null and t.deleted_at is null"
+
+NEEDS_YOU_SQL = f"""
+  select {ROOT_THREAD} as root, min(q.created_at)
+  from orchestration_v2_projection_runtime_requests q
+  join orchestration_v2_projection_threads t using (thread_id)
+  where q.status = 'pending'
+    and q.kind not in ({",".join("?" * len(INTERNAL_REQUEST_KINDS))})
+    and {LIVE_THREAD}
+  group by root
+"""
+
+# `since` follows the sidebar's working timer: the newest active run's
+# workStartedAt, which wake runs inherit from the prompt they continue, so a
+# long task does not restart its clock at every background notification. A
+# queued run only stands in when the thread has no run actually going.
+WORKING_SQL = f"""
+  with act as (
+    select r.thread_id,
+           coalesce(json_extract(r.payload_json, '$.workStartedAt'),
+                    json_extract(r.payload_json, '$.startedAt'),
+                    r.requested_at) as started,
+           row_number() over (
+             partition by r.thread_id
+             order by (r.status = 'queued'), r.ordinal desc, r.run_id desc
+           ) as n
+    from orchestration_v2_projection_runs r
+    where r.status in ({",".join("?" * len(ACTIVE_RUN_STATUSES))})
+  )
+  select {ROOT_THREAD} as root, min(a.started)
+  from act a
+  join orchestration_v2_projection_threads t using (thread_id)
+  where a.n = 1 and {LIVE_THREAD}
+  group by root
+"""
+
+# Top-level threads only: a finished subagent reports to its parent, not the user.
+DONE_SQL = f"""
+  with latest as (
+    select thread_id, status, completed_at,
+           row_number() over (partition by thread_id order by ordinal desc) as n
+    from orchestration_v2_projection_runs
+  )
+  select t.thread_id, l.completed_at
+  from latest l
+  join orchestration_v2_projection_threads t using (thread_id)
+  where l.n = 1
+    and l.status = 'completed'
+    and l.completed_at > json_extract(t.payload_json, '$.lastVisitedAt')
+    and json_extract(t.payload_json, '$.lineage.parentThreadId') is null
+    and coalesce(json_extract(t.payload_json, '$.settledOverride'), '') != 'settled'
+    and not (
+      coalesce(json_extract(t.payload_json, '$.snoozedUntil'), '') > ?
+      and l.completed_at <= coalesce(json_extract(t.payload_json, '$.snoozedAt'), '')
+    )
+    and {LIVE_THREAD}
+"""
+
+
+def base_dir() -> Path:
+  return Path(os.environ.get("T3CODE_USERDATA") or (Path.home() / ".t3" / "userdata"))
+
+
+def server_running(root: Path) -> bool:
+  try:
+    pid = int(json.loads((root / "server-runtime.json").read_text())["pid"])
+    os.kill(pid, 0)
+  except PermissionError:
+    return True
+  except (OSError, ValueError, KeyError, TypeError):
+    return False
+  return True
+
+
+def now_iso() -> str:
+  return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.") + "000Z"
+
+
+def group(db: sqlite3.Connection, since_by_thread: dict[str, str], newest_first: bool) -> list[dict[str, str]]:
+  if not since_by_thread:
+    return []
+  marks = ",".join("?" * len(since_by_thread))
+  titles = dict(
+    db.execute(
+      f"select thread_id, title from orchestration_v2_projection_threads where thread_id in ({marks})",
+      list(since_by_thread),
+    )
+  )
+  items = [
+    {"title": str(titles.get(thread_id) or "Untitled thread"), "since": since}
+    for thread_id, since in since_by_thread.items()
+  ]
+  return sorted(items, key=lambda item: item["since"], reverse=newest_first)
+
+
+def collect() -> dict[str, Any]:
+  root = base_dir()
+  if not server_running(root):
+    return {"status": "offline"}
+  try:
+    db = sqlite3.connect(f"file:{root / 'statev2.sqlite'}?mode=ro", uri=True, timeout=1.0)
+    try:
+      needs = dict(db.execute(NEEDS_YOU_SQL, INTERNAL_REQUEST_KINDS))
+      working = {k: v for k, v in db.execute(WORKING_SQL, ACTIVE_RUN_STATUSES) if k not in needs}
+      done = {
+        k: v for k, v in db.execute(DONE_SQL, (now_iso(),)) if k not in needs and k not in working
+      }
+      return {
+        "status": "ok",
+        "needsYou": group(db, needs, newest_first=False),
+        "working": group(db, working, newest_first=False),
+        "done": group(db, done, newest_first=True),
+      }
+    finally:
+      db.close()
+  except sqlite3.Error:
+    return {"status": "error"}
+
+
+def tailscale_ip() -> str | None:
+  try:
+    out = subprocess.run(["tailscale", "ip", "-4"], capture_output=True, text=True, timeout=5)
+  except (OSError, subprocess.SubprocessError):
+    return None
+  address = out.stdout.strip().splitlines()[0] if out.returncode == 0 and out.stdout.strip() else ""
+  return address or None
+
+
+def serve() -> None:
+  # Bound to the Tailscale address only, never the LAN: thread titles are the
+  # payload, and the tailnet is the access boundary.
+  while (address := tailscale_ip()) is None:
+    time.sleep(5)
+
+  lock = threading.Lock()
+  cached: dict[str, Any] = {"at": 0.0, "body": b""}
+
+  class Handler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+      with lock:
+        if time.monotonic() - cached["at"] >= SERVE_CACHE_SECONDS:
+          cached["body"] = json.dumps(collect(), separators=(",", ":")).encode()
+          cached["at"] = time.monotonic()
+        body = cached["body"]
+      self.send_response(200)
+      self.send_header("Content-Type", "application/json")
+      self.send_header("Content-Length", str(len(body)))
+      self.end_headers()
+      self.wfile.write(body)
+
+    def log_message(self, *_: Any) -> None:
+      pass
+
+  ThreadingHTTPServer((address, FEED_PORT), Handler).serve_forever()
+
+
+class Peer:
+  """Polls one machine's feed in the background; `record` is None while unreachable."""
+
+  def __init__(self, host: str) -> None:
+    self.host = host
+    self.record: dict[str, Any] | None = None
+    threading.Thread(target=self._poll, daemon=True).start()
+
+  def _poll(self) -> None:
+    url = f"http://{self.host}:{FEED_PORT}/"
+    while True:
+      try:
+        with urllib.request.urlopen(url, timeout=PEER_TIMEOUT_SECONDS) as response:
+          record = json.loads(response.read())
+        self.record = record if isinstance(record, dict) and record.get("status") == "ok" else None
+      except (OSError, ValueError):
+        self.record = None
+      time.sleep(PEER_POLL_SECONDS)
+
+
+def merged(peers: list[Peer]) -> dict[str, Any]:
+  sources = [("", collect())] + [(peer.host, peer.record) for peer in peers]
+  record: dict[str, Any] = {"status": "ok"}
+  for name in GROUPS:
+    record[name] = [
+      {"title": item.get("title", ""), "since": item.get("since", ""), "host": host}
+      for host, source in sources
+      if source and source.get("status") == "ok"
+      for item in source.get(name, [])
+      if isinstance(item, dict)
+    ]
+  return record
+
+
+def watch(hosts: list[str]) -> None:
+  peers = [Peer(host) for host in hosts]
+  parent = os.getppid()
+  last = None
+  printed_at = 0.0
+  while os.getppid() == parent:
+    record = json.dumps(merged(peers), separators=(",", ":"))
+    # Repeating an unchanged record is a heartbeat, so a closed reader
+    # surfaces as a broken pipe instead of leaving this running.
+    if record != last or time.monotonic() - printed_at >= HEARTBEAT_SECONDS:
+      print(record, flush=True)
+      last = record
+      printed_at = time.monotonic()
+    time.sleep(WATCH_INTERVAL_SECONDS)
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+  mode = parser.add_mutually_exclusive_group()
+  mode.add_argument("--serve", action="store_true", help="serve this machine's record on its Tailscale address")
+  mode.add_argument("--watch", action="store_true", help="print a merged record whenever it changes")
+  parser.add_argument("--peer", action="append", default=[], metavar="HOST", help="machine whose feed --watch includes")
+  args = parser.parse_args()
+  try:
+    if args.serve:
+      serve()
+    elif args.watch:
+      watch(args.peer)
+    else:
+      print(json.dumps(collect()))
+  except KeyboardInterrupt:
+    pass
+  except BrokenPipeError:
+    # Keep the interpreter's exit-time flush from reporting the same pipe.
+    os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())

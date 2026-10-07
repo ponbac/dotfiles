@@ -33,7 +33,7 @@ manifests
 .config/ghostty
 .config/foot
 .config/uwsm
-.config/systemd
+.config/systemd/user/omarchy-agent-usage-cursor.*
 .local/share/applications/t3code-nightly.desktop
 .local/share/icons/t3code-nightly-custom.png
 .agents/skills/omarchy

@@ -23,6 +23,13 @@
           "id": "ponbac.toki"
         },
         {
+          "id": "ponbac.t3code",
+          "remotes": [
+            "dev-1",
+            "omarchy-laptop"
+          ]
+        },
+        {
           "id": "omarchy.system-update"
         }
       ],

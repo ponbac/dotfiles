@@ -19,6 +19,13 @@
           "id": "omarchy.weather"
         },
         {
+          "id": "ponbac.t3code",
+          "remotes": [
+            "dev-1",
+            "omarchy"
+          ]
+        },
+        {
           "id": "omarchy.system-update"
         }
       ],
