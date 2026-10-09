@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 # Keep Herdr on the shared mise version, ahead of older system/direct installs.
 set -euo pipefail
-exec mise exec github:herdrdev/herdr -- herdr "$@"
+# Resolve the binary directly: inherited mise PATH entries can leave this wrapper first.
+exec "$(mise which herdr --tool github:herdrdev/herdr)" "$@"
