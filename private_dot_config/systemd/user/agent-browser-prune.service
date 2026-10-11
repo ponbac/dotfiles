@@ -1,0 +1,8 @@
+[Unit]
+Description=Remove unused mise agent-browser versions only
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h
+Environment="PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/usr/bin/env mise prune --tools --yes npm:agent-browser

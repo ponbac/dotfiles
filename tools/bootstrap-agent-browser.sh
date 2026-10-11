@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$HOME"
 mise cache clear npm:agent-browser
-mise upgrade --yes --no-prune npm:agent-browser
+mise upgrade --global --yes --no-prune npm:agent-browser
 mise install npm:agent-browser
 # Provision even if the CLI was already installed and postinstall did not run.
 # System dependencies requiring sudo remain an explicit administrator action.
@@ -35,3 +35,7 @@ for entry in entries:
 print('Sole mise agent-browser version:', current)
 PY
 mise reshim
+# Postinstall runs before mise finishes registering a version: prune afterwards,
+# never recursively from that hook. The timer handles future automatic upgrades.
+systemctl --user daemon-reload
+systemctl --user enable --now agent-browser-prune.timer

@@ -7,7 +7,7 @@ DISABLE_AUTOUPDATER = "1"
 OPENCODE_DISABLE_AUTOUPDATE = "1"
 
 [tools]
-pi = "latest"
-codex = "latest"
-claude = "latest"
-"npm:@opencode/cli" = { version = "latest", allow_low_downloads = "true", allow_builds = "@opencode/cli" }
+pi = { version = "latest", auto_update = "24h" }
+codex = { version = "latest", auto_update = "24h" }
+claude = { version = "latest", auto_update = "24h" }
+"npm:@opencode/cli" = { version = "latest", auto_update = "24h", allow_low_downloads = "true", allow_builds = "@opencode/cli" }

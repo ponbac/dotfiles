@@ -2,4 +2,13 @@
 {{- $current := dict -}}
 {{- if .chezmoi.stdin -}}{{- $current = fromJson .chezmoi.stdin -}}{{- end -}}
 {{- $policy := include (joinPath .chezmoi.sourceDir ".chezmoitemplates" "agents" "pi-settings.json") | fromJson -}}
+{{- /* The installer owns Plannotator's matching release pin; never downgrade it. */ -}}
+{{- range $entry := ($current.packages | default list) -}}
+  {{- $source := "" -}}
+  {{- if kindIs "map" $entry -}}{{- $source = $entry.source | default "" -}}
+  {{- else if kindIs "string" $entry -}}{{- $source = $entry -}}{{- end -}}
+  {{- if hasPrefix "npm:@plannotator/pi-extension@" $source -}}
+    {{- $_ := set (index $policy.packages 0) "source" $source -}}
+  {{- end -}}
+{{- end -}}
 {{ mergeOverwrite $current $policy | toPrettyJson }}

@@ -47,7 +47,7 @@ def main():
         destination = stage + "/" if host == os.uname().nodename else f"ponbac@{host}:{stage}/"
         subprocess.run(["rsync", "-a", "--delete", "--exclude=.git", str(snapshot) + "/", destination], check=True)
         program = r'''
-import datetime,json,os,shutil,subprocess,sys
+import datetime,fcntl,json,os,shutil,subprocess,sys
 from pathlib import Path
 stage=Path(sys.argv[1]); apply=sys.argv[2]=='yes'; home=Path.home()
 cm=shutil.which('chezmoi') or str(home/'.local/bin/chezmoi')
@@ -95,7 +95,12 @@ if not (source/'.git').exists():
  subprocess.run(['git','init','--quiet',str(source)],check=True)
  subprocess.run(['git','-C',str(source),'remote','add','origin','https://github.com/ponbac/dotfiles.git'],check=True)
 print('Recovery backup:',backup,flush=True)
-subprocess.run([cm,'apply','--force','--no-tty'],check=True)
+# Serialize the complete read/render/write apply with automatic integration hooks.
+lock=home/'.local/state/agent-integration-update.lock'
+lock.parent.mkdir(parents=True,exist_ok=True)
+with lock.open('a') as handle:
+ fcntl.flock(handle,fcntl.LOCK_EX)
+ subprocess.run([cm,'apply','--force','--no-tty'],check=True)
 remaining=subprocess.check_output([cm,'status','--no-pager'],text=True)
 print('Post-apply status:',remaining or 'clean',flush=True)
 if remaining: raise SystemExit('Managed drift remains; inspect before proceeding')

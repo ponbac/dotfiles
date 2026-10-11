@@ -2,7 +2,9 @@
 """Run the official, version-matched installer after mise installs Plannotator."""
 import argparse
 import datetime
+import fcntl
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -25,6 +27,22 @@ def main():
         raise SystemExit(f'Mise binary version mismatch: expected {expected}, got {actual}')
 
     home = Path.home()
+    for key, expected_path in {'PI_CODING_AGENT_DIR': home / '.pi/agent',
+                               'CODEX_HOME': home / '.codex',
+                               'CLAUDE_CONFIG_DIR': home / '.claude',
+                               'XDG_CONFIG_HOME': home / '.config'}.items():
+        value = os.environ.get(key)
+        if value and Path(value).expanduser().resolve() != expected_path.resolve():
+            raise SystemExit(f'Review {key} before installing home-scoped integrations')
+    lock = home / '.local/state/agent-integration-update.lock'
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with lock.open('a') as handle:
+        # Herdr and Plannotator both modify shared agent config files.
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        install_integrations(home, version, expected)
+
+
+def install_integrations(home, version, expected):
     # Backup locally changed/generated skills and shared configs before the
     # upstream installer updates them. Never sync these backups or credentials.
     names = {'.local/bin/plannotator', '.plannotator/install-prefs',
@@ -71,6 +89,15 @@ def main():
     actual = subprocess.check_output([str(home / '.local/bin/plannotator'), '--version'], text=True).strip()
     if actual != expected:
         raise SystemExit(f'Installer binary version mismatch: expected {expected}, got {actual}')
+
+    # Upstream installs an unversioned Pi source and treats its failure as a
+    # warning. Strictly install/record the matching release, preserving filters.
+    subprocess.run(['pi', 'install', f'npm:@plannotator/pi-extension@{version}',
+                    '--no-approve'], check=True)
+    package = home / '.pi/agent/npm/node_modules/@plannotator/pi-extension/package.json'
+    installed = json.loads(package.read_text()).get('version')
+    if installed != version:
+        raise SystemExit(f'Pi extension version mismatch: expected {version}, got {installed}')
 
 
 if __name__ == '__main__':

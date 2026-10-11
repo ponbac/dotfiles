@@ -1,4 +1,6 @@
-# Shared stable Herdr release. Upgrade this pin after verifying a new release.
+# Follow stable releases and refresh bundled integrations after each install.
 # Do not overwrite Omarchy's /usr/bin/herdr package or self-update mise installs.
-[tools]
-"github:herdrdev/herdr" = "0.9.3"
+[tools."github:herdrdev/herdr"]
+version = "latest"
+auto_update = "24h"
+postinstall = 'bash "$HOME/.local/share/chezmoi/tools/install-herdr-integrations.sh" "$MISE_TOOL_INSTALL_PATH/herdr"'

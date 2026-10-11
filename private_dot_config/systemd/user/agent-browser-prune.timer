@@ -1,0 +1,9 @@
+[Unit]
+Description=Clean up unused agent-browser versions after automatic upgrades
+
+[Timer]
+OnStartupSec=10min
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=timers.target

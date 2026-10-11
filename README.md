@@ -96,9 +96,10 @@ Bring those edits back and review them before using SSH deployment.
   The retired `pi-mcp-adapter` is not installed. Executor uses native HTTP bearer
   headers with `${EXECUTOR_MCP_TOKEN}` and direct tool exposure; the token stays local.
 - Shared mise manifests and nonmutating launchers for Pi, Codex, Claude, OpenCode v2
-  and Herdr. Herdr is pinned to stable **0.9.3**; the user-level mise install takes
-  precedence over Omarchy's older system package without modifying it.
-- Plannotator is pinned to **0.27.25** in `97-plannotator.toml`. Its mise tool-level
+  and Herdr. These tools, Plannotator and agent-browser follow stable `latest`
+  releases with daily mise auto-update checks. Host-owned runtimes do not opt in.
+  User-level Herdr takes precedence over Omarchy's package without modifying it.
+- Plannotator follows `latest` in `97-plannotator.toml`. Its mise tool-level
   postinstall runs the official installer from that exact release tag, with
   noninteractive mode and provenance verification. The installer owns its skills,
   slash commands and integrations; generated skill copies are excluded from
@@ -106,12 +107,13 @@ Bring those edits back and review them before using SSH deployment.
   Before installing, local skills/configs are backed up under
   `~/.local/state/plannotator-install-backups/`. The installer also writes its
   matching `~/.local/bin/plannotator` copy; the hook verifies both binary versions.
-  The Pi extension pin is kept at the same release and restored after installation.
+  Postinstall strictly installs the matching Pi extension release. Chezmoi
+  preserves this host-local pin instead of downgrading it on the next apply.
 - Selected Claude and Codex preferences and an entry-scoped Codex Plannotator hook.
   Herdr owns its generated agent scripts/plugins and its entries in shared hook
   configs. These files are not copied between hosts or overwritten by chezmoi.
-  Explicit bootstrap backs up local integration files/configs, then reconciles
-  Pi, Codex, Claude and OpenCode integrations using the installed Herdr release.
+  Herdr postinstall and explicit bootstrap back up local integration files/configs,
+  then reconcile Pi, Codex, Claude and OpenCode integrations using that release.
   Recovery manifests record existing and missing targets under
   `~/.local/state/herdr-integration-backups/`.
 - Executor-only global MCP configuration for Pi, Claude, Codex and OpenCode v2.
@@ -144,21 +146,22 @@ bash ~/.local/share/chezmoi/tools/bootstrap-agents.sh
 ```
 
 Run this on each host after changing Pi package pins, or pass `--bootstrap` to
-the deployment command. It refreshes the four coding agents' and agent-browser's release caches and upgrades
-them to latest without pruning old installs, ensures the shared mise tools are
+the deployment command. It refreshes all seven shared tools' release caches and
+upgrades them to latest, ensures the shared mise tools are
 installed, reshims, installs current bundled Herdr integrations, and
 reconciles the exact versions declared in Pi settings. It also retires the stale desktop-only Pi
 extension on `dev-1` into a recovery backup. This is explicit, not an automatic
 network/install hook on every chezmoi apply.
 
-All three machines now use mise as the sole active installer for these agents:
+All three machines use mise as the active update owner for these tools:
 
 - `~/.config/mise/conf.d/95-coding-agents.toml` declares Pi, Codex and Claude via
   mise's binary backends, and OpenCode **v2** via `npm:@opencode/cli`.
 - `90-agent-release-policy.toml` exempts these tools from release-age delays.
-- Agent versions remain `latest`, not fixed pins. Each sync/bootstrap checks for
-  current releases; versions can drift between syncs or if a release appears
-  during deployment. Plain `dotpush` publishes only source configuration.
+- All seven tool versions are `latest`, with `auto_update = "24h"`. Each
+  sync/bootstrap also explicitly checks current releases; versions can drift
+  between machines until their next check. Plain `dotpush` publishes only source.
+  Global/runtime-wide auto-update remains disabled.
 - Bootstrap retires the entire `~/.vite-plus/bin` launcher directory into a
   private backup under `~/.local/state/vite-plus-launcher-backups/`. Vite+ runtime
   and agent launchers must not shadow mise. The rest of Vite+ stays untouched.
@@ -181,12 +184,14 @@ Verified on all three (2026-09-29): Pi **0.99.1**, Codex **0.159.1**, Claude
 unavailable; the binary release became available during migration and is now
 installed through mise on all three machines.
 
-Upgrade these agents and agent-browser with:
+Upgrade and reconcile all shared tools without touching runtimes with:
 
 ```sh
-mise cache clear pi codex claude npm:@opencode/cli npm:agent-browser
-mise upgrade --yes --no-prune pi codex claude npm:@opencode/cli npm:agent-browser
+bash ~/.local/share/chezmoi/tools/bootstrap-agents.sh
 ```
+
+`dotsync` and `dotdeploy` invoke this automatically. Plannotator upgrades after Pi
+and the other agents so its official installer sees the refreshed dependencies.
 
 ### agent-browser
 
@@ -199,8 +204,11 @@ already installed. The tool's `postinstall` also provisions the browser after
 direct mise upgrades. After successful provisioning, bootstrap uninstalls legacy
 agent-browser packages from `~/.npm-global` and user-owned mise Node global
 prefixes, then removes older mise agent-browser versions. Only the current CLI
-installation remains; other tools are not pruned. No browser session is started
-and browser profiles are not removed.
+installation remains; other tools are not pruned. The user-level
+`agent-browser-prune.timer` also removes unused browser-tool versions hourly after
+future automatic upgrades. Mise retains versions still needed by running processes
+or tracked project configurations. Pruning never runs inside an unfinished
+postinstall hook. No browser session is started and browser profiles are not removed.
 
 On a Linux host missing browser system libraries, run
 `mise exec npm:agent-browser -- agent-browser install --with-deps` separately
@@ -208,7 +216,7 @@ and review its privileged package-manager changes. Bootstrap does not use sudo.
 Unlike the four coding agents, agent-browser retains mise's default release-age
 policy. Avoid `npm install -g agent-browser` outside mise or its own updater.
 
-### Optional mise automatic updates
+### Mise automatic updates
 
 Mise **2026.10.4+** supports per-tool `auto_update = true` (default check interval:
 24h), or a duration such as `auto_update = "6h"`, in global tool declarations.
@@ -217,11 +225,19 @@ Shims/`mise exec` check the invoked opted-in tool; an activated shell checks in
 the background at prompts. These are activity-driven, not an unconditional timer.
 Exact pins and project overrides do not advance. Release-age policy still applies.
 
-We currently retain explicit sync/bootstrap updates: dev-1 had mise 2026.10.3
-when checked on 2026-10-11; update every host before enabling these options.
-Prefer per-tool opt-in over `tool_update.global_auto` to leave host-owned runtimes
-alone. Plannotator's installer also reconciles integrations, so do not casually
-opt all shared tools into unattended updates.
+All three hosts now run mise 2026.10.7. Daily checks are enabled individually for
+Pi, Codex, Claude, OpenCode, agent-browser, Herdr and Plannotator. We do not enable
+`tool_update.global_auto`: Node/.NET and other host-owned runtimes remain untouched.
+Explicit sync/bootstrap updates still run, regardless of the daily check interval.
+Herdr refreshes bundled integrations after an installation; Plannotator runs its
+version-matched official installer and installs the matching Pi extension. These
+hooks are noninteractive and failures fail the install. The integration hooks,
+bootstrap's Pi reconciliation and deployment applies share a host-local file lock
+so simultaneous writers cannot restore a stale pin. If manually applying chezmoi
+while an update may be running, use
+`flock ~/.local/state/agent-integration-update.lock chezmoi apply`.
+Check `mise doctor` for background update failures. Existing release-age exemptions remain; agent-browser
+keeps the default cooling-off period. Running agents/servers are never restarted.
 
 Updating **mise itself** is separate: `self_update.auto = true` enables periodic
 checks (default 7d) in supported standalone installs. Package-managed mise should
@@ -233,23 +249,18 @@ References: [mise automatic tool updates](https://mise.jdx.dev/dev-tools/#automa
 [mise self-update settings](https://mise.jdx.dev/configuration/settings.html#self_update.auto),
 [agent-browser installation](https://agent-browser.dev/installation).
 
-Herdr upgrades are coordinated separately: update the stable pin in
-`~/.config/mise/conf.d/96-herdr.toml` through its chezmoi source, then sync/bootstrap
-all hosts. Do not run `herdr update` on this mise-managed installation. Existing
-Herdr servers and pane processes are not stopped during installation; reconnect
-clients and restart servers later only when their work can safely be interrupted.
-Restart agent processes to load updated integrations.
+Do not run `herdr update` on this mise-managed installation. Existing Herdr
+servers and pane processes are not stopped during upgrades; reconnect clients and
+restart servers later when their work can safely be interrupted. Restart agent
+processes to load updated integrations and the Plannotator Pi extension.
 
-For Plannotator, change the mise pin in `97-plannotator.toml` and the matching Pi
-extension pin in `.chezmoitemplates/agents/pi-settings.json`, then sync/bootstrap.
-A real `mise install` or upgrade invokes the official installer automatically;
-an already-installed version is a no-op. To repair its generated skills and
-integrations, use `mise install --force github:backnotprop/plannotator`.
-Do not import or overwrite installer-owned skills with `chezmoi re-add`.
+To repair Plannotator's generated skills/integrations, use
+`mise install --force github:backnotprop/plannotator`. To repair Herdr integrations,
+run bootstrap. Do not import installer-owned skills with `chezmoi re-add`.
 
 Do not use `mise upgrade opencode`: that registry name is the old v1 backend.
 Do not install these agents globally with npm or the native Claude installer.
-Pi extension packages remain separately pinned. `DEV.md` retains the original
+Other Pi extension packages remain separately pinned. `DEV.md` retains the original
 runtime audit; this targeted agent consolidation supersedes its initial deferral.
 
 ## T3 Code Nightly (Omarchy desktops only)

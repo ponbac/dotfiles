@@ -1,6 +1,8 @@
 # Receive these coding-agent releases immediately. Keep mise's default waiting
 # period for other tools, and leave Omarchy's runtime/PATH ownership unchanged.
 [settings]
+# Only opted-in shared tools auto-update; never opt host runtimes in globally.
+tool_update.global_auto = false
 minimum_release_age_excludes = [
   "plannotator",
   "github:backnotprop/plannotator",
