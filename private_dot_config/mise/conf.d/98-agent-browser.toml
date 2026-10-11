@@ -1,0 +1,4 @@
+# Shared browser automation tool; upgraded by dotsync/bootstrap on every host.
+# Match dev-1's existing backend rather than adding a second installation.
+[tools]
+"npm:agent-browser" = { version = "latest", postinstall = "agent-browser install" }

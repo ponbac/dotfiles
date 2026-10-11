@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run AFTER applying chezmoi. Upgrade the four mise-managed coding agents and
+# Run AFTER applying chezmoi. Upgrade the four coding agents and agent-browser and
 # ensure pinned Pi packages and Herdr integrations exist; stage the desktop T3
 # nightly on Omarchy hosts. Do not change other runtimes, OAuth, or project trust.
 # Herdr owns generated integrations, not chezmoi.
@@ -17,11 +17,13 @@ if [[ -e "$HOME/.vite-plus/bin" || -L "$HOME/.vite-plus/bin" ]]; then
   mv "$HOME/.vite-plus/bin" "$backup/bin"
   printf 'Vite+ launcher recovery backup: %s\n' "$backup"
 fi
-# Refresh only agent release caches and preserve old installs for running agents.
+# Refresh coding-agent caches; preserve old installs for running agents.
 mise cache clear pi codex claude npm:@opencode/cli
 mise upgrade --yes --no-prune pi codex claude npm:@opencode/cli
 # Install Plannotator last: its official installer detects the other agents.
 mise install pi codex claude npm:@opencode/cli github:herdrdev/herdr
+# Browser automation deliberately retains only the current version.
+bash "$(dirname "${BASH_SOURCE[0]}")/bootstrap-agent-browser.sh"
 mise install github:backnotprop/plannotator
 mise reshim
 # The upstream Pi integration installer records an unversioned package source.

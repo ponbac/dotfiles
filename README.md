@@ -144,7 +144,7 @@ bash ~/.local/share/chezmoi/tools/bootstrap-agents.sh
 ```
 
 Run this on each host after changing Pi package pins, or pass `--bootstrap` to
-the deployment command. It refreshes the four agents' release caches and upgrades
+the deployment command. It refreshes the four coding agents' and agent-browser's release caches and upgrades
 them to latest without pruning old installs, ensures the shared mise tools are
 installed, reshims, installs current bundled Herdr integrations, and
 reconciles the exact versions declared in Pi settings. It also retires the stale desktop-only Pi
@@ -181,12 +181,57 @@ Verified on all three (2026-09-29): Pi **0.99.1**, Codex **0.159.1**, Claude
 unavailable; the binary release became available during migration and is now
 installed through mise on all three machines.
 
-Upgrade only these agents with:
+Upgrade these agents and agent-browser with:
 
 ```sh
-mise cache clear pi codex claude npm:@opencode/cli
-mise upgrade --yes --no-prune pi codex claude npm:@opencode/cli
+mise cache clear pi codex claude npm:@opencode/cli npm:agent-browser
+mise upgrade --yes --no-prune pi codex claude npm:@opencode/cli npm:agent-browser
 ```
+
+### agent-browser
+
+`~/.config/mise/conf.d/98-agent-browser.toml` declares `npm:agent-browser` at
+`latest` on every host, matching dev-1's existing backend. The shared
+`~/.local/bin/agent-browser` launcher delegates to this exact mise backend.
+Sync/bootstrap runs `tools/bootstrap-agent-browser.sh` to upgrade it and run
+`agent-browser install` to provision Chrome for Testing, even when the CLI is
+already installed. The tool's `postinstall` also provisions the browser after
+direct mise upgrades. After successful provisioning, bootstrap uninstalls legacy
+agent-browser packages from `~/.npm-global` and user-owned mise Node global
+prefixes, then removes older mise agent-browser versions. Only the current CLI
+installation remains; other tools are not pruned. No browser session is started
+and browser profiles are not removed.
+
+On a Linux host missing browser system libraries, run
+`mise exec npm:agent-browser -- agent-browser install --with-deps` separately
+and review its privileged package-manager changes. Bootstrap does not use sudo.
+Unlike the four coding agents, agent-browser retains mise's default release-age
+policy. Avoid `npm install -g agent-browser` outside mise or its own updater.
+
+### Optional mise automatic updates
+
+Mise **2026.10.4+** supports per-tool `auto_update = true` (default check interval:
+24h), or a duration such as `auto_update = "6h"`, in global tool declarations.
+**2026.10.7+** also supports `tool_update.global_auto` and background prompt updates.
+Shims/`mise exec` check the invoked opted-in tool; an activated shell checks in
+the background at prompts. These are activity-driven, not an unconditional timer.
+Exact pins and project overrides do not advance. Release-age policy still applies.
+
+We currently retain explicit sync/bootstrap updates: dev-1 had mise 2026.10.3
+when checked on 2026-10-11; update every host before enabling these options.
+Prefer per-tool opt-in over `tool_update.global_auto` to leave host-owned runtimes
+alone. Plannotator's installer also reconciles integrations, so do not casually
+opt all shared tools into unattended updates.
+
+Updating **mise itself** is separate: `self_update.auto = true` enables periodic
+checks (default 7d) in supported standalone installs. Package-managed mise should
+be upgraded by its package manager. Omarchy's `/usr/bin/mise` belongs to `mise-bin`
+and `mise doctor` reports `self_update_available: no`; do not force self-update
+or replace that package-owned binary.
+
+References: [mise automatic tool updates](https://mise.jdx.dev/dev-tools/#automatic-tool-updates),
+[mise self-update settings](https://mise.jdx.dev/configuration/settings.html#self_update.auto),
+[agent-browser installation](https://agent-browser.dev/installation).
 
 Herdr upgrades are coordinated separately: update the stable pin in
 `~/.config/mise/conf.d/96-herdr.toml` through its chezmoi source, then sync/bootstrap
