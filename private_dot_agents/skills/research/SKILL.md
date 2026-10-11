@@ -14,4 +14,7 @@ Decide where the findings go before the agent starts:
 
 - **Answer in chat** when the findings serve the current conversation: a quick fact, an API detail, or a question whose answer you act on right away.
 - **Write a Markdown file** when the findings must outlive the session: the user asked for notes or a doc, another agent or ticket will pick them up, or the result is long enough to reference later. Save it where the repo already keeps such notes; match the existing convention, and if there is none, put it somewhere sensible and say where.
+- **When the working directory is the user's home directory**, save file-based findings under `/tmp` instead, using a unique directory created with `mktemp -d /tmp/research-XXXXXX`. Never leave research files directly in `~/`. Repositories under home (such as `~/dev/project`) still use their own notes convention. Tell the user the exact output path and that `/tmp` storage is temporary; if durable storage is needed, ask for a repo or another destination rather than falling back to home.
 - **Ask the user** when it is unclear whether a file is wanted.
+
+Give the background agent the chosen output destination explicitly, including the `/tmp` path when working from home. The same rule applies to intermediate research files.
