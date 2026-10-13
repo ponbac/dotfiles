@@ -8,6 +8,11 @@
       "headers": {
         "Authorization": "Bearer {env:EXECUTOR_MCP_TOKEN}"
       }
+    },
+    "rea": {
+      "type": "local",
+      "command": ["/home/ponbac/.local/bin/rea", "mcp"],
+      "enabled": true
     }
   }
 }

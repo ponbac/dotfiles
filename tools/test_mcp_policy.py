@@ -25,24 +25,41 @@ class MCPPolicyTests(unittest.TestCase):
         )
         return tomllib.loads(output) if path.endswith('.toml') else json.loads(output)
 
-    def test_executor_only_preserves_unrelated_settings_and_is_idempotent(self):
+    def test_shared_servers_preserve_unrelated_settings_and_are_idempotent(self):
         for path, key in POLICIES:
             with self.subTest(path=path):
                 if path.endswith('.toml'):
                     before = ('local_setting = "keep"\n'
                               '[mcp_servers.railway]\ncommand = "railway"\n'
                               '[mcp_servers.executor]\nurl = "https://wrong.invalid"\n'
-                              'bearer_token = "host-secret"\n')
+                              'bearer_token = "host-secret"\n'
+                              '[mcp_servers.rea]\ncommand = "wrong-rea"\n'
+                              'args = ["update"]\n')
                 else:
                     before = json.dumps({'local_setting': 'keep', key: {
                         'railway': {'command': ['railway', 'mcp']},
                         'playwriter': {'enabled': False},
+                        'rea': {'command': 'wrong-rea', 'args': ['update']},
                         'executor': {'url': 'https://wrong.invalid',
                                      'headers': {'Authorization': 'host-secret'}},
                     }})
                 after = self.render(path, before)
                 self.assertEqual(after['local_setting'], 'keep')
-                self.assertEqual(set(after[key]), {'executor'})
+                self.assertEqual(set(after[key]), {'executor', 'rea'})
+                rea = after[key]['rea']
+                if key == 'mcp':
+                    self.assertEqual(rea, {'type': 'local',
+                                          'command': ['/home/ponbac/.local/bin/rea', 'mcp'],
+                                          'enabled': True})
+                else:
+                    expected_rea = {'command': '/home/ponbac/.local/bin/rea', 'args': ['mcp']}
+                    if key == 'mcp_servers':
+                        expected_rea['startup_timeout_sec'] = 30
+                    else:
+                        expected_rea['type'] = 'stdio'
+                        if path.startswith('private_dot_pi/'):
+                            expected_rea['exposure'] = 'direct'
+                    self.assertEqual(rea, expected_rea)
                 executor = after[key]['executor']
                 self.assertEqual(executor['url'], 'https://executor.pike-quail.ts.net/mcp')
                 self.assertNotIn('host-secret', json.dumps(after))
@@ -50,8 +67,10 @@ class MCPPolicyTests(unittest.TestCase):
                     self.assertEqual(executor['bearer_token_env_var'], 'EXECUTOR_MCP_TOKEN')
                     self.assertEqual(executor['default_tools_approval_mode'], 'writes')
                     # These are the only top-level settings exercised by this fixture.
-                    again = ('local_setting = "keep"\n[mcp_servers.executor]\n' +
-                             '\n'.join(f'{k} = {json.dumps(v)}' for k, v in executor.items()))
+                    again = 'local_setting = "keep"\n' + '\n'.join(
+                        f'[mcp_servers.{name}]\n' + '\n'.join(
+                            f'{k} = {json.dumps(v)}' for k, v in server.items())
+                        for name, server in after[key].items())
                 else:
                     token = '{env:EXECUTOR_MCP_TOKEN}' if key == 'mcp' else '${EXECUTOR_MCP_TOKEN}'
                     self.assertEqual(executor['headers'], {'Authorization': f'Bearer {token}'})

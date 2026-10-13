@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# The shared mise manifest owns the version; do not run REA's self-updater.
+set -euo pipefail
+exec mise exec npm:rea-agents -- rea "$@"

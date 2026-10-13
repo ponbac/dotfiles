@@ -8,6 +8,12 @@ verification. Non-agent runtimes and trust remain host-owned. The original audit
 and initial deferral below are retained as historical context; README describes
 the current setup.
 
+**REA addition:** all three hosts also install pinned `npm:rea-agents` 6.4.0 from
+`99-rea.toml`. Chezmoi now allows Executor + REA in the global MCP policies;
+REA's skill-only setup owns the excluded shared/Claude skill trees. This is a
+JavaScript/Electron-first installation, with no optional native engines or
+runtime replacement. See README's REA section for validation, repair and rollback.
+
 Initial source capture and integration notes. The lead subsequently deployed this
 configuration to all three hosts. No commits or pushes were made. Top-level
 source directories now use the `private_` prefix (see README).

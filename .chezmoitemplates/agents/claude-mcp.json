@@ -6,6 +6,11 @@
       "headers": {
         "Authorization": "Bearer ${EXECUTOR_MCP_TOKEN}"
       }
+    },
+    "rea": {
+      "type": "stdio",
+      "command": "/home/ponbac/.local/bin/rea",
+      "args": ["mcp"]
     }
   }
 }

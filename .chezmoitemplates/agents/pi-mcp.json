@@ -6,6 +6,12 @@
         "Authorization": "Bearer ${EXECUTOR_MCP_TOKEN}"
       },
       "exposure": "direct"
+    },
+    "rea": {
+      "type": "stdio",
+      "command": "/home/ponbac/.local/bin/rea",
+      "args": ["mcp"],
+      "exposure": "direct"
     }
   }
 }

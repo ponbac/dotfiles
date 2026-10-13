@@ -29,6 +29,10 @@ mise install pi codex claude npm:@opencode/cli github:herdrdev/herdr
 # Browser automation deliberately retains only the current version.
 bash "$tools_dir/bootstrap-agent-browser.sh"
 mise install github:backnotprop/plannotator
+# REA is deliberately pinned; install without upgrading it or host runtimes.
+# Its setup is skill-only: chezmoi already applied the shared MCP registrations.
+mise install npm:rea-agents
+python3 "$tools_dir/install-rea-skills.py" "$(mise where npm:rea-agents)"
 mise reshim
 # Reconcile bundled hooks even when Herdr was already installed (no postinstall).
 bash "$tools_dir/install-herdr-integrations.sh" "$(mise where github:herdrdev/herdr)/herdr"

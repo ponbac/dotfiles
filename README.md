@@ -116,7 +116,7 @@ Bring those edits back and review them before using SSH deployment.
   then reconcile Pi, Codex, Claude and OpenCode integrations using that release.
   Recovery manifests record existing and missing targets under
   `~/.local/state/herdr-integration-backups/`.
-- Executor-only global MCP configuration for Pi, Claude, Codex and OpenCode v2.
+- Executor + REA global MCP configuration for Pi, Claude, Codex and OpenCode v2.
   OpenCode's `opencode.json` owns MCP configuration; `opencode.jsonc` has its MCP
   section removed so it cannot reintroduce servers. Both preserve unrelated settings.
   All clients reference the host-local `EXECUTOR_MCP_TOKEN`; no token is synced.
@@ -126,7 +126,7 @@ Bring those edits back and review them before using SSH deployment.
 
 Agent `modify_` sources merge selected keys with current settings. They preserve
 host-local tokens, project trust, desktop-generated Codex plugins/marketplaces,
-and unrelated state. Global MCP server maps are replaced with executor only,
+and unrelated state. Global MCP server maps are replaced with Executor + REA only,
 including removal of stale executor credentials/options. Project-local MCP
 configuration is outside this policy and remains unmanaged.
 Security/permission relaxations are not
@@ -262,6 +262,74 @@ Do not use `mise upgrade opencode`: that registry name is the old v1 backend.
 Do not install these agents globally with npm or the native Claude installer.
 Other Pi extension packages remain separately pinned. `DEV.md` retains the original
 runtime audit; this targeted agent consolidation supersedes its initial deferral.
+
+## REA: JavaScript and Electron reverse engineering
+
+All three hosts install `npm:rea-agents` **6.4.0** through mise's shared
+`99-rea.toml`. Unlike the seven latest-tracking tools above, REA is deliberately
+pinned for this initial rollout; it does not auto-update. `~/.local/bin/rea`
+delegates to mise, and all four agents launch that absolute wrapper as a local
+stdio MCP server alongside Executor. No remote analysis service is configured.
+
+Chezmoi owns the MCP registrations. REA owns only its version-matched generated
+skills under `~/.agents/skills/reverse-engineer-anything` (Pi, Codex, OpenCode)
+and `~/.claude/skills/reverse-engineer-anything` (Claude). Those trees are excluded
+from chezmoi. Mise postinstall and explicit bootstrap run
+`tools/install-rea-skills.py`, which previews and approves **only** the shared and
+Claude skill destinations. It rejects unexpected actions and symlinked skill
+paths, serializes writes with the existing integration lock, and backs up changed
+skill trees before applying. No-op reconciliation creates no recovery backup.
+Backups and existing/missing-path manifests stay local under
+`~/.local/state/rea-skill-install-backups/`; managed config backups use the normal
+deployment recovery directory. The initial REA-only rollout preserves unrelated
+live drift and keeps config recovery manifests under
+`~/.local/state/rea-config-rollout-backups/`. No credentials, analysis artifacts or REA cache
+are imported into this repository.
+
+```sh
+rea --version
+rea doctor --skill --json
+# Repair generated skills without changing MCP registrations or native providers:
+python3 ~/.local/share/chezmoi/tools/install-rea-skills.py "$(mise where npm:rea-agents)"
+```
+
+Do not run bare `rea setup`, `rea update`, or an independent global npm install:
+setup can replace the managed wrapper registration, while mise owns installation.
+REA's client doctor can label a wrapper registration stale because it compares
+its path to the npm executable; use a live MCP connection/tool-list check to
+verify these deliberately managed registrations. Optional native-provider checks
+may fail even while JavaScript/Electron analysis works. Restart agents when idle
+to discover the new server and skill; deployment never restarts running sessions.
+
+### First Electron investigation
+
+Hopper, Ghidra, Java, debugging proxies and privileged system packages are **not**
+installed by this integration. Start with an app you own or are authorized to
+inspect, using its `resources/app.asar` or an extracted application tree:
+
+```sh
+rea analyze-javascript-application /absolute/path/to/app.asar --json > evidence.json
+```
+
+Keep evidence outside the dotfiles repo. In an agent, ask REA's
+`analyze_javascript_application` for a summary, inspect retained module Evidence,
+and trace one feature with `trace_application_feature`. Start with main/preload
+entry points, BrowserWindow configuration, contextBridge and IPC channels;
+static observations alone do not prove runtime reachability or enforcement.
+For runtime inspection, explicitly launch an isolated app/profile with a
+loopback-only CDP endpoint, then use `list_electron_targets` and
+`inspect_electron_page`. Do not expose debugging ports on the LAN/tailnet or
+attach to a live authenticated app without reviewing the scope first. Browser
+interaction automation remains agent-browser's responsibility. Native `.node`
+add-ons may warrant separately installing a native engine later.
+
+Upgrade by editing the pin in `99-rea.toml`, validating, then publishing/deploying.
+To roll back, restore the previous pin and shared policies, sync, and review the
+recovery manifests before restoring old skill trees or removing newly created
+ones. An older binary alone does not restore skills or configuration.
+
+Sources: [REA](https://github.com/morluto/rea),
+[installation and task readiness](https://github.com/morluto/rea/blob/a56f7bb668ab23fec8d33f7af353ac7ed2fe1895/docs/installation.md).
 
 ## T3 Code Nightly (Omarchy desktops only)
 
