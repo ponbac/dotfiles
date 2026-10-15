@@ -1,0 +1,9 @@
+#!/bin/bash
+# Keep Zen as the system default; use Helium for all Omarchy web apps.
+# User override: no changes to package-owned Omarchy files.
+if (($# == 0)); then
+  echo "Usage: omarchy-launch-webapp <url> [browser-flags...]" >&2
+  exit 1
+fi
+
+exec setsid uwsm-app -- /usr/bin/helium-browser --app="$1" "${@:2}"

@@ -126,7 +126,8 @@ Bring those edits back and review them before using SSH deployment.
 
 Agent `modify_` sources merge selected keys with current settings. They preserve
 host-local tokens, project trust, desktop-generated Codex plugins/marketplaces,
-and unrelated state. Global MCP server maps are replaced with Executor + REA only,
+and unrelated state. When a merge changes no data, the live file is kept byte for byte
+(`.chezmoitemplates/agents/keep-format`), so key order and whitespace never show as drift. Global MCP server maps are replaced with Executor + REA only,
 including removal of stale executor credentials/options. Project-local MCP
 configuration is outside this policy and remains unmanaged.
 Security/permission relaxations are not

@@ -52,9 +52,10 @@ from pathlib import Path
 stage=Path(sys.argv[1]); apply=sys.argv[2]=='yes'; home=Path.home()
 cm=shutil.which('chezmoi') or str(home/'.local/bin/chezmoi')
 def cmd(*args): return subprocess.check_output([cm,'--source',str(stage),*args],text=True)
-# Rendering catches invalid templates before touching managed files. Don't print
-# rendered contents: modify scripts can legitimately preserve local credentials.
-subprocess.run([cm,'--source',str(stage),'apply','--dry-run','--no-tty'],check=True,stdout=subprocess.DEVNULL)
+# Rendering catches invalid templates before touching managed files. Match the
+# eventual forced apply so local drift cannot trigger an unattended prompt.
+# Don't print rendered contents: modify scripts may preserve local credentials.
+subprocess.run([cm,'--source',str(stage),'apply','--dry-run','--force','--no-tty'],check=True,stdout=subprocess.DEVNULL)
 status=cmd('status','--no-pager')
 lines=status.splitlines()
 print(f'{len(lines)} paths would change')

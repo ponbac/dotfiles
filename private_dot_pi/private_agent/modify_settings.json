@@ -11,4 +11,4 @@
     {{- $_ := set (index $policy.packages 0) "source" $source -}}
   {{- end -}}
 {{- end -}}
-{{ mergeOverwrite $current $policy | toPrettyJson }}
+{{- includeTemplate "agents/keep-format" (dict "stdin" .chezmoi.stdin "value" (mergeOverwrite $current $policy) "format" "json") -}}

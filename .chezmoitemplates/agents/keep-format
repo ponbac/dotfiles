@@ -1,0 +1,12 @@
+{{- /* Return the live file unchanged when the merge leaves its data the same, so key order and whitespace never count as drift. */ -}}
+{{- $live := dict -}}
+{{- if .stdin -}}
+  {{- if eq .format "toml" -}}{{- $live = fromToml .stdin -}}{{- else -}}{{- $live = fromJsonc .stdin -}}{{- end -}}
+{{- end -}}
+{{- if and .stdin (eq (toJson $live) (toJson .value)) -}}
+{{- .stdin -}}
+{{- else if eq .format "toml" -}}
+{{ .value | toToml }}
+{{ else -}}
+{{ .value | toPrettyJson }}
+{{ end -}}

@@ -4,4 +4,4 @@
 {{- /* Shared policy owns the entire global MCP server map. */ -}}
 {{- $_ := unset $current "mcp" -}}
 {{- $policy := include (joinPath .chezmoi.sourceDir ".chezmoitemplates" "agents" "opencode-mcp.json") | fromJson -}}
-{{ mergeOverwrite $current $policy | toPrettyJson }}
+{{- includeTemplate "agents/keep-format" (dict "stdin" .chezmoi.stdin "value" (mergeOverwrite $current $policy) "format" "json") -}}

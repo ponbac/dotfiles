@@ -4,4 +4,4 @@
 {{- /* Shared policy owns the entire global MCP server map. */ -}}
 {{- $_ := unset $current "mcp_servers" -}}
 {{- $policy := include (joinPath .chezmoi.sourceDir ".chezmoitemplates" "agents" "codex-settings.json") | fromJson -}}
-{{ mergeOverwrite $current $policy | toToml }}
+{{- includeTemplate "agents/keep-format" (dict "stdin" .chezmoi.stdin "value" (mergeOverwrite $current $policy) "format" "toml") -}}

@@ -10,7 +10,7 @@ SOURCE = Path(__file__).resolve().parents[1]
 POLICIES = (
     ('private_dot_pi/private_agent/modify_mcp.json', 'mcpServers'),
     ('modify_private_dot_claude.json', 'mcpServers'),
-    ('private_dot_codex/modify_config.toml', 'mcp_servers'),
+    ('private_dot_codex/modify_private_config.toml', 'mcp_servers'),
     ('private_dot_config/opencode/modify_opencode.json', 'mcp'),
 )
 

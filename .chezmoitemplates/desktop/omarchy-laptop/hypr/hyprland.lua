@@ -27,3 +27,11 @@ require("default.hypr.toggles")
 
 -- Add any other personal Hyprland configuration below.
 -- o.window("qemu", { workspace = "5" })
+
+-- Prefer our Helium web-app launcher after Omarchy sets up its own PATH.
+local webapp_override_bin = os.getenv("HOME") .. "/.local/share/omarchy-overrides/bin"
+local webapp_path = { webapp_override_bin }
+for entry in (os.getenv("PATH") or "/usr/local/bin:/usr/bin"):gmatch("[^:]+") do
+  if entry ~= webapp_override_bin then table.insert(webapp_path, entry) end
+end
+hl.env("PATH", table.concat(webapp_path, ":"))

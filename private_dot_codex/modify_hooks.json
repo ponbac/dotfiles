@@ -19,4 +19,4 @@
 {{- $owned := dict "hooks" (list (dict "type" "command" "command" $command "timeout" 345600)) -}}
 {{- $_ := set $hooks "Stop" (append $stop $owned) -}}
 {{- $_ := set $current "hooks" $hooks -}}
-{{ $current | toPrettyJson }}
+{{- includeTemplate "agents/keep-format" (dict "stdin" .chezmoi.stdin "value" $current "format" "json") -}}

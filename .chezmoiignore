@@ -7,6 +7,9 @@ DEPLOYMENT.md
 tools
 manifests
 
+# Python bytecode next to managed scripts is never a target.
+**/__pycache__
+
 # The official Plannotator installer owns these skills and command stubs.
 .agents/skills/plannotator*
 .claude/skills/plannotator*
@@ -39,6 +42,7 @@ manifests
 .config/uwsm
 .config/systemd/user/omarchy-agent-usage-cursor.*
 .config/systemd/user/t3code-nightly-update.*
+.local/share/omarchy-overrides
 .config/environment.d/60-t3code-nightly.conf
 .local/bin/t3code-nightly
 .local/bin/t3code-nightly-update
