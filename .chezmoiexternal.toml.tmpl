@@ -1,0 +1,8 @@
+{{- if has .chezmoi.hostname (list "omarchy" "omarchy-laptop") }}
+# Third-party Omarchy bar plugin, reviewed at v1.0.1. Cloned only when absent;
+# chezmoi never pulls it (no refreshPeriod). Update with `omarchy plugin update`.
+[".config/omarchy/plugins/njpatel.omabot"]
+    type = "git-repo"
+    url = "https://github.com/njpatel/omabot.git"
+    clone.args = ["--branch", "v1.0.1"]
+{{- end }}

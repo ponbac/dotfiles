@@ -445,6 +445,13 @@ restricts it. Omarchy's firewall must allow the port on `tailscale0` if it
 blocks tailnet traffic. The script reads T3 Code's internal projection tables,
 so a T3 Code schema change can blank the widget until the queries are updated.
 
+`njpatel.omabot` (third-party) shows the Grok Bot roster on both Omarchy bars.
+It is a chezmoi `git-repo` external (`.chezmoiexternal.toml.tmpl`), reviewed and
+pinned to `v1.0.1`. Chezmoi clones it only when absent and never pulls it; keep its
+`.git` so `omarchy plugin update njpatel.omabot` can review and fast-forward it.
+It reads Grok Bot's local state under `~/.config/Grok Bot` (no network), so an app
+update can blank it until the plugin catches up.
+
 ## Ayaka and wallpapers
 
 Ayaka revision is recorded in `.chezmoitemplates/desktop/theme-lock.json`.
