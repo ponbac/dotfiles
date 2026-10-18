@@ -35,3 +35,7 @@ for entry in (os.getenv("PATH") or "/usr/local/bin:/usr/bin"):gmatch("[^:]+") do
   if entry ~= webapp_override_bin then table.insert(webapp_path, entry) end
 end
 hl.env("PATH", table.concat(webapp_path, ":"))
+
+-- Keep Helium from stealing focus (and the cursor warp that follows) when
+-- agent-browser activates tabs over CDP.
+o.window("helium", { focus_on_activate = false })

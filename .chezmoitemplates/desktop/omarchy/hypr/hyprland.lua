@@ -52,3 +52,7 @@ o.window("^(Kodi|kodi)$", {
   fullscreen = true,
   idle_inhibit = "fullscreen",
 })
+
+-- Keep Helium from stealing focus (and the cursor warp that follows) when
+-- agent-browser activates tabs over CDP.
+o.window("helium", { focus_on_activate = false })
