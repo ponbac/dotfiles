@@ -28,6 +28,7 @@ AGENT_NAME = "Cursor"
 AUTH_HELP = "Run `agent login` to authenticate."
 USAGE_URL = "https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage"
 PLAN_URL = "https://api2.cursor.sh/aiserver.v1.DashboardService/GetPlanInfo"
+GROK_BOT_URL = "https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus"
 PROBE_MIN_INTERVAL_SECONDS = 15
 MAX_RESPONSE_BYTES = 1024 * 1024
 
@@ -187,6 +188,11 @@ def probe(token: str) -> dict[str, Any]:
       plan = connect_post(PLAN_URL, token)
     except Exception:
       plan = {}
+    # Grok Bot ("Sand") has its own weekly allowance outside planUsage.
+    try:
+      grok_bot = connect_post(GROK_BOT_URL, token)
+    except Exception:
+      grok_bot = {}
   except urllib.error.HTTPError as error:
     if error.code in (401, 403):
       return {"ok": False, "auth": True, "helpText": AUTH_HELP}
@@ -229,6 +235,15 @@ def probe(token: str) -> dict[str, Any]:
         "percent": percent,
         "resetsAt": resets_at,
       })
+
+  grok_bot_percent = percent_used(grok_bot.get("usagePercent"))
+  if grok_bot_percent is not None:
+    limits.append({
+      "label": "Grok Bot",
+      "title": "Grok Bot",
+      "percent": grok_bot_percent,
+      "resetsAt": parse_reset_at(grok_bot.get("nextResetTimestampUtc")),
+    })
 
   if not limits:
     return {"ok": False, "helpText": "Cursor's usage endpoint returned no limits."}
