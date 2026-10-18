@@ -36,6 +36,10 @@ for entry in (os.getenv("PATH") or "/usr/local/bin:/usr/bin"):gmatch("[^:]+") do
 end
 hl.env("PATH", table.concat(webapp_path, ":"))
 
+-- GTK 4.24's empty blur region disables Hyprland 0.56's compositor blur.
+-- Keep compositor-controlled blur until upstream fixes omacom/omarchy#15793.
+hl.env("GDK_WAYLAND_DISABLE", "ext_background_effect_manager_v1")
+
 -- Keep Helium from stealing focus (and the cursor warp that follows) when
 -- agent-browser activates tabs over CDP.
 o.window("helium", { focus_on_activate = false })

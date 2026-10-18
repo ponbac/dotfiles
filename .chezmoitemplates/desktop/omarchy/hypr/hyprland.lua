@@ -47,6 +47,10 @@ hl.layer_rule({
 -- If anything still runs omarchy-capture-screenshot, open the result in Omasnap.
 hl.env("OMARCHY_SCREENSHOT_EDITOR", "omasnap")
 
+-- GTK 4.24's empty blur region disables Hyprland 0.56's compositor blur.
+-- Keep compositor-controlled blur until upstream fixes omacom/omarchy#15793.
+hl.env("GDK_WAYLAND_DISABLE", "ext_background_effect_manager_v1")
+
 -- Kodi should open full screen and inhibit idle only while full screen.
 o.window("^(Kodi|kodi)$", {
   fullscreen = true,
