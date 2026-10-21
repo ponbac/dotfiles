@@ -1,11 +1,11 @@
 {{- if has .chezmoi.hostname (list "omarchy" "omarchy-laptop") }}
 # Third-party Omarchy bar plugin: ponbac's fork of njpatel/omabot, reviewed at
-# v1.0.1 plus fixes for Grok Bot 0.71 (liveness, working, question cards)
-# and the bar slot width.
+# v1.0.1 plus fixes for Grok Bot 0.71 (liveness, working, question cards),
+# Grok Bot 0.75 skipped questions and the bar slot width.
 # Cloned only when absent; chezmoi never pulls it (no refreshPeriod).
 # Update with `omarchy plugin update`.
 [".config/omarchy/plugins/njpatel.omabot"]
     type = "git-repo"
     url = "https://github.com/ponbac/omabot.git"
-    clone.args = ["--branch", "v1.0.1-ponbac.3"]
+    clone.args = ["--branch", "v1.0.1-ponbac.4"]
 {{- end }}

@@ -447,9 +447,12 @@ so a T3 Code schema change can blank the widget until the queries are updated.
 
 `njpatel.omabot` (third-party) shows the Grok Bot roster on both Omarchy bars.
 It is a chezmoi `git-repo` external (`.chezmoiexternal.toml.tmpl`) cloned from the
-fork `ponbac/omabot` at `v1.0.1-ponbac.3`: upstream `v1.0.1`, reviewed, plus fixes
-for Grok Bot 0.71 (liveness, working state, question cards) and the bar slot width. Chezmoi clones it only when
-absent and never pulls it, so changing the URL or tag does not move an existing
+fork `ponbac/omabot` at `v1.0.1-ponbac.4`: upstream `v1.0.1`, reviewed, plus fixes
+for Grok Bot 0.71 (liveness, working state, question cards), 0.75 skipped question
+cards and the bar slot width. Working remains conservative: the first bot reply
+ends the known-working window; skipped cards no longer count as awaiting or
+revive older questions. Chezmoi clones it only when absent and never pulls it,
+so changing the URL or tag does not move an existing
 checkout; switch that by hand (`git remote set-url`, fetch, checkout the tag).
 Keep its `.git` so `omarchy plugin update njpatel.omabot` can review and
 fast-forward it from the fork.
@@ -524,7 +527,7 @@ blobs or Omabot's avatar cache between machines.
 Validation: run `python3 -B -m unittest discover -s tools -p 'test_grok_bot_update.py' -v`.
 Runtime upgrade checks compare Omabot's aggregate counts/liveness, the reported
 app version, the Hyprland app class and tray registration, without exporting bot
-names, conversations or tokens. The existing `v1.0.1-ponbac.3` plugin remains
+names, conversations or tokens. The existing `v1.0.1-ponbac.4` plugin remains
 pinned unless runtime evidence requires a fix.
 
 ## Ayaka and wallpapers
