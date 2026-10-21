@@ -1,9 +1,8 @@
 [Unit]
-Description=Check official Grok Bot stable releases hourly
+Description=Check official Grok Bot stable releases every eight hours
 
 [Timer]
-OnBootSec=5min
-OnCalendar=hourly
+OnCalendar=*-*-* 00/8:00:00
 RandomizedDelaySec=5min
 Persistent=true
 

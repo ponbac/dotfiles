@@ -481,10 +481,11 @@ patches are based on the AUR `grok-bot-bin` recipe by falser/rafaeloledo. Future
 upstream Electron or state-format changes can still require a packaging/Omabot
 review; unchanged entrypoint paths alone are not proof of compatibility.
 
-The timer checks **hourly**, with up to five minutes of jitter, and five minutes
-after the user manager starts. Persistent calendar checks catch missed runs but
-do not wake the laptop. It stages packages and notifies once delivery succeeds;
-it **never installs as root, quits/restarts the app, or changes profiles**.
+The timer checks **every eight hours** (00:00, 08:00 and 16:00 local time), with
+up to five minutes of jitter. Persistent calendar checks catch missed runs but
+do not wake the laptop. There is no additional boot/login check. It stages
+packages and notifies once delivery succeeds; it **never installs as root,
+quits/restarts the app, or changes profiles**.
 Installing remains an explicit authenticated action after quitting via the tray:
 
 ```sh
