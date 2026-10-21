@@ -15,11 +15,11 @@ A non-root user can't serve a file or directory with `tailscale serve`; it retur
    tailscale serve --bg --yes --https=<https-port> http://127.0.0.1:<local-port>
    ```
 
-   The symlink means later edits to the page show up without serving again.
+   The symlink means later edits to the page show up without serving again. Symlink any video saved next to the page into the same directory.
 4. **Verify.** `curl -s -o /dev/null -w "%{http_code} %{content_type}\n" https://<host>:<https-port>/` returns `200 text/html`.
 5. **Hand over.**
    - Give the user `https://<host>:<https-port>/`.
-   - Say that it stays up until removed, and that the page's web fonts load from the viewer's own connection.
+   - Say that it stays up until removed, and that the page's web fonts, Mermaid and Shiki load from the viewer's own connection.
    - Give the teardown, which removes only this page's serve:
 
    ```sh

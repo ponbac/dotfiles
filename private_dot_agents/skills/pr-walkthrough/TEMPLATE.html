@@ -1,0 +1,402 @@
+<!doctype html>
+<!--
+  PR walkthrough shell. Copy it, replace every double-brace placeholder and the sample blocks, keep the <style> and <script> as they are.
+  Components:
+    Mermaid      <pre class="mermaid">…</pre>. In flowcharts, tag nodes A:::new, A:::changed, A:::context, A:::risk;
+                 the classDefs are added for you. Write a line break in a label as &lt;br/&gt;.
+    Code         <pre class="code" data-lang="ts" data-start="203" data-hl="3,5-7" data-path="src/x.ts" data-href="{{diff link}}">…</pre>
+                 Escape < > & in the code. data-start numbers the lines; data-hl marks lines relative to the block.
+    Stages       <div class="stages"> of .stage boxes (h4, code, ul) joined by .to arrows, ending in .outcomes; for a
+                 pipeline whose steps each hold several rules, which Mermaid draws as unreadable text blocks.
+    Diff code    the same with data-diff: every line starts with "+", "-" or " ", and the rest is highlighted as data-lang.
+                 A line that is just "@@" marks skipped lines.
+    Media        <figure class="shot"><img data-shot="name"> or <video data-shot="name" controls muted loop playsinline></video>
+                 <figcaption>…</figcaption></figure> inside .media (one per row) or .media.pair (side by side).
+    Tags         <span class="tag new|changed|moved|skim|context|high|medium|low">…</span>
+    Check        after load, await walkthroughCheck() returns what step 5 verifies.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #{{n}} · {{title}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0d1016;
+    --panel: #141922;
+    --panel-2: #1a202b;
+    --border: #262e3b;
+    --text: #e4e8ee;
+    --muted: #8b95a5;
+    --accent: #7aa2f7;
+    --new: #3fb950;
+    --changed: #e3a63b;
+    --moved: #a78bfa;
+    --risk: #f47067;
+    --add-bg: rgba(63, 185, 80, 0.13);
+    --del-bg: rgba(244, 112, 103, 0.13);
+    --hl-bg: rgba(122, 162, 247, 0.14);
+    --radius: 10px;
+    --sans: "Inter", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: 72px; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--sans); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre, .mono { font-family: var(--mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  :not(pre) > code { font-size: 0.86em; background: var(--panel-2); border: 1px solid var(--border); border-radius: 5px; padding: 0.05em 0.35em; }
+
+  nav.top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 28px; padding: 14px 40px;
+    background: rgba(13, 16, 22, 0.88); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+  nav.top .pr { font-weight: 600; white-space: nowrap; }
+  nav.top .pr span { color: var(--muted); font-weight: 400; }
+  nav.top .links { display: flex; gap: 22px; overflow-x: auto; }
+  nav.top .links a { color: var(--muted); font-size: 14px; white-space: nowrap; }
+  nav.top .links a.active, nav.top .links a:hover { color: var(--text); text-decoration: none; }
+
+  main { max-width: 1240px; margin: 0 auto; padding: 48px 40px 96px; }
+  section { padding-top: 56px; }
+  section:first-child { padding-top: 0; }
+  h1 { font-size: 40px; line-height: 1.15; letter-spacing: -0.02em; margin: 8px 0 18px; max-width: 26ch; }
+  h2 { font-size: 26px; letter-spacing: -0.01em; margin: 0 0 6px; }
+  h3 { font-size: 18px; margin: 32px 0 6px; }
+  .eyebrow { color: var(--muted); font: 500 13px var(--mono); }
+  .lead { font-size: 18px; color: #c9d0da; max-width: 78ch; margin: 0; }
+  .intro { color: var(--muted); max-width: 78ch; margin: 0 0 20px; }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin: 26px 0 0; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; }
+  .stat b { font-size: 20px; margin-right: 6px; }
+  .stat span { color: var(--muted); font-size: 14px; }
+  .plus { color: var(--new); } .minus { color: var(--risk); }
+
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; }
+
+  figure { margin: 20px 0 0; }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; max-width: 90ch; }
+  .diagram { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; overflow-x: auto; }
+  pre.mermaid { margin: 0; display: flex; justify-content: center; background: none; font-family: var(--sans); }
+  pre.mermaid:not([data-processed]) { color: transparent; min-height: 120px; }
+  .legend { display: flex; gap: 16px; margin-top: 14px; font-size: 13px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; border: 2px solid; vertical-align: -1px; }
+
+  .stages { display: flex; align-items: stretch; gap: 12px; }
+  .stage { flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--border); border-top: 3px solid var(--muted);
+    border-radius: var(--radius); padding: 14px 18px; }
+  .stage.new { border-top-color: var(--new); } .stage.changed { border-top-color: var(--changed); }
+  .stage h4 { margin: 0; font-size: 15px; }
+  .stage > code { display: block; margin-top: 2px; color: var(--muted); font-size: 12.5px; background: none; border: 0; padding: 0; }
+  .stage ul { margin: 10px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.5; color: #c9d0da; }
+  .stage li + li { margin-top: 4px; }
+  .stages .to { align-self: center; color: var(--muted); font-size: 20px; }
+  .outcomes { display: flex; flex-direction: column; justify-content: center; gap: 10px; flex: 0 0 auto; }
+  .outcome { border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 14px; white-space: nowrap; }
+  .outcome b { display: block; }
+  .outcome.risk { border-color: var(--risk); } .outcome.ok { border-color: var(--new); }
+  .tag { display: inline-block; font: 600 11px/1 var(--mono); letter-spacing: 0.04em; text-transform: uppercase; padding: 4px 7px;
+    border-radius: 5px; border: 1px solid currentColor; vertical-align: 2px; }
+  .tag.new { color: var(--new); } .tag.changed, .tag.medium { color: var(--changed); } .tag.moved { color: var(--moved); }
+  .tag.skim, .tag.context, .tag.low { color: var(--muted); } .tag.high { color: var(--risk); }
+
+  ul.files { list-style: none; margin: 0; padding: 0; font: 14px/1.9 var(--mono); }
+  ul.files li { display: flex; gap: 12px; align-items: baseline; }
+  ul.files .n { margin-left: auto; color: var(--muted); white-space: nowrap; }
+  ul.files .why { font-family: var(--sans); color: var(--muted); }
+  details.skim summary { cursor: pointer; color: var(--muted); font-size: 14px; margin-top: 10px; }
+
+  .code-block { margin: 20px 0 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--panel); }
+  .code-block .cap { display: flex; justify-content: space-between; gap: 16px; padding: 9px 16px; font: 13px var(--mono);
+    color: var(--muted); border-bottom: 1px solid var(--border); background: var(--panel-2); }
+  .code-block pre { margin: 0; padding: 14px 0; font-size: 13.5px; line-height: 1.65; white-space: normal; tab-size: 2;
+    background: transparent !important; }
+  .code-block pre code { counter-reset: ln calc(var(--start, 1) - 1); display: block; }
+  .code-block .line { display: block; position: relative; min-height: 1.65em; padding: 0 18px 0 64px; white-space: pre-wrap;
+    word-break: break-word; border-left: 3px solid transparent; }
+  .code-block .line::before { counter-increment: ln; content: counter(ln); position: absolute; left: 0; width: 44px; text-align: right;
+    color: #4b5566; }
+  .code-block .line.hl { background: var(--hl-bg); border-left-color: var(--accent); }
+  .code-block .line.add { background: var(--add-bg); border-left-color: var(--new); }
+  .code-block .line.del { background: var(--del-bg); border-left-color: var(--risk); }
+  .code-block .line.add::before { color: var(--new); }
+  .code-block .line.del::before { color: var(--risk); }
+  .code-block.diff .line::before { content: ""; counter-increment: none; }
+  .code-block.diff .line.add::before { content: "+"; }
+  .code-block.diff .line.del::before { content: "−"; }
+  .code-block .line.skip { color: #4b5566; text-align: center; letter-spacing: 0.3em; }
+
+  .media { display: grid; gap: 28px; margin-top: 20px; }
+  .media.pair { grid-template-columns: 1fr 1fr; gap: 20px; }
+  .shot img, .shot video { display: block; width: 100%; height: auto; border-radius: var(--radius); border: 1px solid var(--border);
+    background: var(--panel); cursor: zoom-in; }
+  .shot video { cursor: default; }
+  .note { border-left: 3px solid var(--changed); background: rgba(227, 166, 59, 0.08); padding: 10px 16px; border-radius: 0 8px 8px 0;
+    margin-top: 18px; font-size: 15px; }
+
+  .questions { display: grid; gap: 14px; margin-top: 8px; }
+  .q { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; }
+  .q h3 { margin: 0 0 4px; font-size: 16px; }
+  .q h3 .tag { margin-right: 10px; }
+  .q p { margin: 0; color: #c9d0da; }
+  .q .ev { margin-top: 8px; font-size: 13px; color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  td code, td .mono { white-space: nowrap; }
+
+  #lightbox { position: fixed; inset: 0; z-index: 50; display: none; place-items: center; background: rgba(0, 0, 0, 0.88); cursor: zoom-out; padding: 24px; }
+  #lightbox.open { display: grid; }
+  #lightbox img { max-width: 100%; max-height: 100%; border-radius: 6px; }
+  footer { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<nav class="top">
+  <div class="pr">#{{n}} <span>{{owner/repo}}</span></div>
+  <div class="links">
+    <a href="#summary">Summary</a>
+    <a href="#looks">What it looks like</a>
+    <a href="#how">How it works</a>
+    <a href="#questions">Worth questioning</a>
+  </div>
+</nav>
+
+<main>
+  <section id="summary">
+    <div class="eyebrow">{{owner/repo}} · #{{n}} · {{base}} ← {{head branch}} · at {{short head oid}}</div>
+    <h1>{{The behaviour change as a plain sentence}}</h1>
+    <p class="lead"><b>Before:</b> {{…}} <b>After:</b> {{…}}</p>
+    <div class="stats">
+      <div class="stat"><b><span class="plus">+{{a}}</span> <span class="minus">−{{d}}</span></b><span>lines</span></div>
+      <div class="stat"><b>{{f}}</b><span>files</span></div>
+      <div class="stat"><b>{{c}}</b><span>commits</span></div>
+    </div>
+
+    <figure>
+      <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  ui[Checkout page]:::changed --> api[POST /orders]:::context
+  api --> rules[discount rules&lt;br/&gt;discounts.ts]:::new
+  rules --> pay[payment port]:::new
+</pre>
+        <div class="legend"><span><i style="border-color:var(--new)"></i>new</span><span><i style="border-color:var(--changed)"></i>changed</span><span><i style="border-color:var(--muted)"></i>context</span><span><i style="border-color:var(--risk)"></i>risk</span></div>
+      </div>
+      <figcaption>{{Change map: one sentence on what the picture shows.}}</figcaption>
+    </figure>
+
+    <h3>Files</h3>
+    <ul class="files">
+      <li><span class="tag changed">changed</span><a href="{{diff link}}">src/orders/discounts.ts</a><span class="why">{{what changes}}</span><span class="n"><span class="plus">+120</span> <span class="minus">−8</span></span></li>
+      <li><span class="tag moved">moved</span><a href="{{diff link}}">src/orders/totals.ts</a><span class="why">{{from where}}</span><span class="n"><span class="plus">+40</span> <span class="minus">−40</span></span></li>
+    </ul>
+    <details class="skim"><summary>{{k}} files to skim: generated, lockfiles, docs</summary>
+      <ul class="files"><li><span class="tag skim">skim</span>docs/architecture.md<span class="n">+12</span></li></ul>
+    </details>
+  </section>
+
+  <section id="looks">
+    <h2>What it looks like</h2>
+    <p class="intro">{{Where the shots come from, in one sentence.}}</p>
+    <div class="media">
+      <figure class="shot"><img data-shot="approve" alt=""><figcaption>{{What the shot shows · source · when}}</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="how">
+    <h2>How it works</h2>
+    <p class="intro">{{One sentence.}}</p>
+
+    <h3>{{Deep dive title}}</h3>
+    <figure>
+      <div class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+  participant C as Checkout
+  participant S as Server
+  participant P as Payments
+  C->>S: POST /orders
+  S->>P: charge {amount, currency}
+  P-->>S: 201
+</pre>
+      </div>
+      <figcaption>{{One or two sentences.}}</figcaption>
+    </figure>
+
+    <h3>{{Pipeline deep dive title}}</h3>
+    <figure>
+      <div class="diagram">
+        <div class="stages">
+          <div class="stage new"><h4>Validate the cart</h4><code>validateCart</code>
+            <ul><li>Every item is in stock</li><li>The coupon hasn't expired</li></ul></div>
+          <div class="to">→</div>
+          <div class="stage changed"><h4>Price the order</h4><code>applyDiscounts</code>
+            <ul><li>Discounts never take the total below zero</li><li>Currency matches the cart</li></ul></div>
+          <div class="to">→</div>
+          <div class="outcomes">
+            <div class="outcome risk"><b>Rejected</b>any rule fails</div>
+            <div class="outcome ok"><b>Charged</b>every rule holds</div>
+          </div>
+        </div>
+      </div>
+      <figcaption>{{One or two sentences.}}</figcaption>
+    </figure>
+
+    <pre class="code" data-lang="ts" data-start="22" data-hl="4-5" data-path="src/orders/discounts.ts" data-href="{{diff link}}">export function applyDiscounts(order: Order): Money {
+  const total = subtotal(order);
+
+  if (order.coupon !== undefined &amp;&amp; order.coupon.expiresAt &gt; now())
+    return total.minus(order.coupon.amount);
+  return total;
+}</pre>
+
+    <pre class="code" data-lang="ts" data-diff data-path="src/orders/checkout.ts" data-href="{{diff link}}"> const total = applyDiscounts(order);
+@@
+-if (total.isZero()) return reject("empty");
++if (total.isNegative()) return reject("negative-total");
+ return charge(order, total);</pre>
+  </section>
+
+  <section id="questions">
+    <h2>Worth questioning</h2>
+    <p class="intro">Questions, not confirmed bugs, unless marked otherwise.</p>
+    <div class="questions">
+      <div class="q"><h3><span class="tag medium">medium</span>{{Question as a short headline}}</h3>
+        <p>{{One or two sentences.}}</p>
+        <div class="ev">Evidence: <a href="{{diff link}}">discounts.ts:25</a></div></div>
+    </div>
+  </section>
+
+  <footer>{{Example values are illustrative.}} Line references point at head {{short head oid}}, compared with base {{short base oid}}.</footer>
+</main>
+
+<div id="lightbox"><img alt=""></div>
+
+<script>
+  // Base64 data URIs, keyed by name; <img data-shot="name"> and <video data-shot="name"> read from here, so a reused shot is stored once.
+  const SHOTS = {
+    // approve: "data:image/webp;base64,…",
+  };
+  for (const el of document.querySelectorAll("[data-shot]")) el.src = SHOTS[el.dataset.shot] ?? "";
+
+  const lightbox = document.getElementById("lightbox");
+  document.addEventListener("click", (e) => {
+    const img = e.target.closest(".shot img");
+    if (img) { lightbox.querySelector("img").src = img.src; lightbox.classList.add("open"); }
+    else if (e.target.closest("#lightbox")) lightbox.classList.remove("open");
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") lightbox.classList.remove("open"); });
+
+  const links = [...document.querySelectorAll("nav.top .links a")];
+  const sections = links.map((a) => document.querySelector(a.getAttribute("href"))).filter(Boolean);
+  for (const a of links) if (!document.querySelector(a.getAttribute("href"))) a.remove();
+  const io = new IntersectionObserver((entries) => {
+    for (const en of entries) if (en.isIntersecting)
+      for (const a of links) a.classList.toggle("active", a.getAttribute("href") === "#" + en.target.id);
+  }, { rootMargin: "-20% 0px -70% 0px" });
+  sections.forEach((s) => io.observe(s));
+
+  // Step 5's checks in one call: await walkthroughCheck(). Every list should come back empty and ready true.
+  window.walkthroughCheck = async () => {
+    const until = Date.now() + 20000;
+    const root = document.documentElement.dataset;
+    while (!(root.diagrams && root.code) && Date.now() < until) await new Promise((r) => setTimeout(r, 200));
+    const ids = [...document.querySelectorAll("[id]")].map((e) => e.id).filter((id) => !id.startsWith("mermaid-"));
+    const shots = [...document.querySelectorAll("img[data-shot], .shot img")];
+    return {
+      ready: Boolean(root.diagrams && root.code),
+      brokenDiagrams: [...document.querySelectorAll("pre.mermaid")]
+        .filter((e) => !e.querySelector("svg") || /Syntax error/.test(e.textContent)).map((e) => e.closest("section")?.id),
+      tallDiagrams: [...document.querySelectorAll("pre.mermaid svg")]
+        .filter((s) => s.getBoundingClientRect().height > 700).map((s) => s.closest("section")?.id),
+      unhighlighted: [...document.querySelectorAll("pre.code")].map((e) => e.dataset.path),
+      longExcerpts: [...document.querySelectorAll(".code-block")]
+        .filter((b) => b.querySelectorAll(".line").length > 20).map((b) => b.querySelector(".cap span").textContent),
+      brokenMedia: [...shots.filter((i) => !i.naturalWidth), ...[...document.querySelectorAll("video")].filter((v) => v.readyState === 0)]
+        .map((e) => e.dataset.shot || e.getAttribute("src")?.slice(0, 40)),
+      duplicateIds: ids.filter((id, i) => ids.indexOf(id) !== i),
+      placeholders: [...(document.body.innerText.match(/\{\{[^}]*\}\}/g) ?? []),
+        ...[...document.querySelectorAll('[href*="{{"]')].map((e) => e.getAttribute("href"))],
+      overflowX: document.documentElement.scrollWidth > window.innerWidth,
+    };
+  };
+</script>
+
+<script type="module">
+  // Diagrams
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  const CLASSES = `
+  classDef new fill:#12281a,stroke:#3fb950,stroke-width:2px,color:#e4e8ee
+  classDef changed fill:#2a2112,stroke:#e3a63b,stroke-width:2px,color:#e4e8ee
+  classDef context fill:#1a202b,stroke:#4b5566,color:#8b95a5
+  classDef risk fill:#2c1615,stroke:#f47067,stroke-width:2px,color:#e4e8ee`;
+  for (const el of document.querySelectorAll("pre.mermaid")) {
+    if (/^\s*(flowchart|graph)\b/.test(el.textContent)) el.insertAdjacentText("beforeend", "\n" + CLASSES);
+  }
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: "base",
+    flowchart: { nodeSpacing: 28, rankSpacing: 40, padding: 12 },
+    fontFamily: "Inter, system-ui, sans-serif",
+    themeVariables: {
+      darkMode: true, background: "#141922", fontSize: "15px",
+      primaryColor: "#1a202b", primaryTextColor: "#e4e8ee", primaryBorderColor: "#3a4455",
+      secondaryColor: "#1a202b", tertiaryColor: "#141922", lineColor: "#6b7685", textColor: "#e4e8ee",
+      actorBkg: "#1a202b", actorBorder: "#3a4455", actorTextColor: "#e4e8ee", signalColor: "#8b95a5", signalTextColor: "#e4e8ee",
+      noteBkgColor: "#2a2112", noteTextColor: "#e4e8ee", noteBorderColor: "#e3a63b",
+      edgeLabelBackground: "#141922", clusterBkg: "#11151c", clusterBorder: "#262e3b",
+    },
+  });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.documentElement.dataset.diagrams = "ready";
+</script>
+
+<script type="module">
+  // Code
+  import { codeToHtml } from "https://esm.sh/shiki@3";
+  const ranges = (spec) => {
+    const set = new Set();
+    for (const part of (spec ?? "").split(",").filter(Boolean)) {
+      const [a, b = a] = part.split("-").map(Number);
+      for (let i = a; i <= b; i++) set.add(i);
+    }
+    return set;
+  };
+  for (const pre of document.querySelectorAll("pre.code")) {
+    const { lang = "text", start = "1", hl, path, href } = pre.dataset;
+    let source = pre.textContent.replace(/\n$/, "");
+    const marks = new Map();
+    if ("diff" in pre.dataset) {
+      source = source.split("\n").map((l, i) => {
+        if (l.trim() === "@@") { marks.set(i + 1, "skip"); return " ⋯"; }
+        if (l[0] === "+") marks.set(i + 1, "add");
+        if (l[0] === "-") marks.set(i + 1, "del");
+        return l.slice(1);
+      }).join("\n");
+    }
+    const lit = ranges(hl);
+    const html = await codeToHtml(source, {
+      lang, theme: "github-dark-default",
+      transformers: [{ line(node, n) {
+        if (lit.has(n)) this.addClassToHast(node, "hl");
+        if (marks.has(n)) this.addClassToHast(node, marks.get(n));
+      } }],
+    }).catch(() => null);
+    const block = document.createElement("div");
+    block.className = "diff" in pre.dataset ? "code-block diff" : "code-block";
+    const label = path ? (href ? `<a href="${href}">${path}</a>` : path) : lang;
+    block.innerHTML = `<div class="cap"><span>${label}</span><span>${"diff" in pre.dataset ? "diff" : `from line ${start}`}</span></div>`;
+    if (html) block.insertAdjacentHTML("beforeend", html);
+    else { pre.classList.remove("code"); block.append(pre.cloneNode(true)); }
+    block.querySelector("pre code")?.style.setProperty("--start", start);
+    pre.replaceWith(block);
+  }
+  document.documentElement.dataset.code = "ready";
+</script>
+</body>
+</html>

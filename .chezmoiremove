@@ -16,3 +16,8 @@
 .claude/skills/codex-review
 .codex/skills/claude-review
 {{- end }}
+
+# pr-walkthrough's SCREENSHOTS.md became MEDIA.md.
+{{- if has .chezmoi.hostname (list "omarchy" "omarchy-laptop" "dev-1") }}
+.agents/skills/pr-walkthrough/SCREENSHOTS.md
+{{- end }}
