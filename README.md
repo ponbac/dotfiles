@@ -456,6 +456,76 @@ fast-forward it from the fork.
 It reads Grok Bot's local state under `~/.config/Grok Bot` (no network), so an app
 update can blank it until the plugin catches up.
 
+## Grok Bot stable updates (Omarchy desktops only)
+
+Both desktops retain the native **`grok-bot-bin` pacman package**, but no longer
+need to wait for AUR version bumps. `grok-bot-update` reads the official stable
+Linux manifest at `https://api2.cursor.sh/updates/api/download/stable/linux-x64/sand`,
+validates its version/commit/exact official `.deb` URL, and uses `makepkg` as the
+normal user. Debian maintainer scripts are never run. The downloaded RPM is not
+installed or needed: the feed provides the matching Debian payload directly.
+
+Chezmoi manages `~/.local/bin/grok-bot-update`, the recipe and AUR-derived ISC
+helpers under `~/.local/share/grok-bot-packaging/`, and the user service/timer.
+They are excluded on `dev-1` and unknown hosts; runtime also permits only the two
+x86_64 Omarchy hosts. Packages and receipts stay host-local in
+`~/.cache/grok-bot-update/packages/`, never in Git. Requires the existing package,
+Arch build tools (`makepkg`, `fakeroot`, `bsdtar`, Python), curl and notify-send.
+
+The recipe retains the fontconfig launcher workaround, `sand` alias, desktop
+entry, MIME handlers, AppArmor profile and packed-ASAR StatusNotifier tray with
+hide-on-close. It refuses an unexpected upstream main entrypoint instead of
+silently generating a broken wrapper. Chromium's sandbox is **not disabled**;
+these hosts use unprivileged user namespaces, not a setuid helper. These local
+patches are based on the AUR `grok-bot-bin` recipe by falser/rafaeloledo. Future
+upstream Electron or state-format changes can still require a packaging/Omabot
+review; unchanged entrypoint paths alone are not proof of compatibility.
+
+The timer checks **hourly**, with up to five minutes of jitter, and five minutes
+after the user manager starts. Persistent calendar checks catch missed runs but
+do not wake the laptop. It stages packages and notifies once delivery succeeds;
+it **never installs as root, quits/restarts the app, or changes profiles**.
+Installing remains an explicit authenticated action after quitting via the tray:
+
+```sh
+grok-bot-update --check       # metadata-only; no local writes
+grok-bot-update --status      # installed and staged versions, offline
+grok-bot-update               # download/build/stage; safe while app runs
+grok-bot-update --install     # quit app first; sudo in terminal / polkit in GUI
+systemctl --user daemon-reload
+systemctl --user enable --now grok-bot-update.timer
+journalctl --user -u grok-bot-update.service -n 30
+```
+
+Normal system/AUR upgrades remain available. Equal/newer installed versions
+(including higher Arch pkgrel/epoch) are skipped; installation rechecks after
+building. Do not run another package manager concurrently with `--install`,
+including during authentication. No passwordless sudo policy is installed.
+`dotsync`/bootstrap enables the timer and asynchronously stages Grok; plain
+`chezmoi apply` only installs the files. The system-installed desktop launcher
+is still the only Grok launch owner; there is no second user-space app copy.
+
+**Trust:** the upstream feed currently supplies no publisher checksum/signature.
+Downloads rely on HTTPS from the validated official URL. Local SHA-256 receipts
+and makepkg source checks detect subsequent cache/source corruption; they do not
+establish independent publisher authentication. Checks/builds fail without
+changing the installed app. Previous staged packages are retained, with no
+unattended deletion; monitor disk use. A failed notification is retried without
+rebuilding. A failed service is visible in `systemctl --user --failed`/the journal.
+
+Before the first 0.75.0 launch, profiles were backed up privately under
+`~/.local/state/grok-bot-upgrade-backups/` on each upgraded host. Rollback after
+an app migration requires the matching profile snapshot as well as the old
+pacman package (the existing AUR cache retains 0.72.1); an older executable alone
+is not a safe database downgrade. Never sync Grok profiles, credentials, roster
+blobs or Omabot's avatar cache between machines.
+
+Validation: run `python3 -B -m unittest discover -s tools -p 'test_grok_bot_update.py' -v`.
+Runtime upgrade checks compare Omabot's aggregate counts/liveness, the reported
+app version, the Hyprland app class and tray registration, without exporting bot
+names, conversations or tokens. The existing `v1.0.1-ponbac.3` plugin remains
+pinned unless runtime evidence requires a fix.
+
 ## Ayaka and wallpapers
 
 Ayaka revision is recorded in `.chezmoitemplates/desktop/theme-lock.json`.

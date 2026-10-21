@@ -42,6 +42,9 @@ manifests
 .config/uwsm
 .config/systemd/user/omarchy-agent-usage-cursor.*
 .config/systemd/user/t3code-nightly-update.*
+.config/systemd/user/grok-bot-update.*
+.local/bin/grok-bot-update
+.local/share/grok-bot-packaging
 .local/share/omarchy-overrides
 .config/environment.d/60-t3code-nightly.conf
 .local/bin/t3code-nightly

@@ -57,6 +57,8 @@ case "$(hostname)" in
   omarchy|omarchy-laptop)
     t3code-nightly-update
     systemctl --user daemon-reload
-    systemctl --user enable --now t3code-nightly-update.timer
+    systemctl --user enable --now t3code-nightly-update.timer grok-bot-update.timer
+    # Stage packages asynchronously; never ask for root or quit Grok during sync.
+    systemctl --user start --no-block grok-bot-update.service
     ;;
 esac

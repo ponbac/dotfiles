@@ -1,0 +1,10 @@
+[Unit]
+Description=Stage a native Arch Grok Bot update with Omarchy tray fixes
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/grok-bot-update
+TimeoutStartSec=20min
+Nice=10
+UMask=0077
+NoNewPrivileges=true

@@ -1,0 +1,201 @@
+#!/usr/bin/python3
+"""Stage native Arch packages from Grok Bot's official stable Linux feed.
+
+Default: check/build/notify only. --install requires a closed app and interactive
+sudo or graphical polkit authentication. Never quits apps or enables native updates.
+"""
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
+
+API = 'https://api2.cursor.sh/updates/api/download/stable/linux-x64/sand'
+PACKAGING = Path.home() / '.local/share/grok-bot-packaging'
+CACHE = Path.home() / '.cache/grok-bot-update'
+SOURCES = ('PKGBUILD.in', 'grok-bot.sh', 'linux-tray.cjs', 'extract-asar.py')
+
+
+class UpdateError(Exception):
+    pass
+
+
+def digest(path):
+    with path.open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def fetch(url, output=None):
+    command = ['curl', '--disable', '--fail', '--location', '--silent', '--show-error',
+               '--proto', '=https', '--proto-redir', '=https', '--connect-timeout', '15',
+               '--max-time', '300' if output else '60', '--retry', '2',
+               '--max-filesize', str(512 * 1024 * 1024 if output else 65536)]
+    if output:
+        command += ['--output', str(output)]
+    return subprocess.check_output([*command, '--url', url])
+
+
+def release_metadata(data):
+    """Trust only stable semver, exact commit and the canonical official deb URL."""
+    if not isinstance(data, dict):
+        raise UpdateError('Invalid upstream manifest')
+    version, commit = data.get('version'), data.get('commitSha')
+    if not isinstance(version, str) or not re.fullmatch(r'(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)', version):
+        raise UpdateError('Unexpected upstream version; packaging review required')
+    if not isinstance(commit, str) or not re.fullmatch(r'[a-f0-9]{40}', commit):
+        raise UpdateError('Invalid release commit')
+    expected = f'https://downloads.cursor.com/grokbot/stable/{commit}/linux/x64/grok-bot_{version}_amd64.deb'
+    if data.get('debUrl') != expected:
+        raise UpdateError('Unexpected upstream download URL; refusing download')
+    return {'version': version, 'commit': commit, 'url': expected}
+
+
+def installed():
+    result = subprocess.run(['pacman', '-Q', 'grok-bot-bin'], capture_output=True, text=True)
+    if result.returncode:
+        raise UpdateError('Install grok-bot-bin through Omarchy first; this updater only upgrades it')
+    return result.stdout.split()[1]
+
+
+def newer(version, current):
+    return int(subprocess.check_output(['vercmp', version + '-1', current], text=True)) > 0
+
+
+def app_running():
+    # Match executable identity, not shell command strings or PID guesses.
+    executable = Path('/opt/Grok Bot/grok-bot')
+    for proc in Path('/proc').iterdir():
+        if not proc.name.isdigit():
+            continue
+        try:
+            if proc.stat().st_uid != os.getuid():
+                continue
+            target = os.readlink(proc / 'exe').removesuffix(' (deleted)')
+            if target == str(executable):
+                return True
+        except (FileNotFoundError, PermissionError, ProcessLookupError):
+            continue
+    return False
+
+
+def notify(message):
+    if not shutil.which('notify-send'):
+        return False
+    result = subprocess.run(['notify-send', '--app-name=Grok Bot updater', 'Grok Bot update', message],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=False)
+    return result.returncode == 0
+
+
+def stage(release):
+    recipe_id = hashlib.sha256(b''.join((PACKAGING / name).read_bytes() for name in SOURCES)).hexdigest()[:16]
+    destination = CACHE / 'packages' / f"{release['version']}-{release['commit']}-{recipe_id}"
+    receipt = destination / 'receipt.json'
+    if receipt.exists():
+        data = json.loads(receipt.read_text())
+        package = destination / f"grok-bot-bin-{release['version']}-1-x86_64.pkg.tar.zst"
+        if data['release'] != release or digest(package) != data['sha256']:
+            raise UpdateError('Cached package changed; refusing reuse. Review the cache manually.')
+        return package, False
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='build-', dir=CACHE) as temp:
+        build = Path(temp)
+        for name in SOURCES:
+            shutil.copyfile(PACKAGING / name, build / name)
+        deb = build / f"grok-bot_{release['version']}_amd64.deb"
+        fetch(release['url'], deb)
+        replacements = {
+            'VERSION': release['version'], 'DEB_SHA256': digest(deb),
+            'LAUNCHER_SHA256': digest(build / 'grok-bot.sh'),
+            'TRAY_SHA256': digest(build / 'linux-tray.cjs'),
+            'ASAR_SHA256': digest(build / 'extract-asar.py'),
+        }
+        recipe = (build / 'PKGBUILD.in').read_text()
+        for key, value in replacements.items():
+            recipe = recipe.replace('@' + key + '@', value)
+        (build / 'PKGBUILD').write_text(recipe)
+        env = os.environ.copy()
+        env.update(PKGDEST=str(build), SRCDEST=str(build), BUILDDIR=str(build),
+                   PKGEXT='.pkg.tar.zst')
+        subprocess.run(['makepkg', '--config', '/etc/makepkg.conf', '--clean', '--noconfirm'],
+                       cwd=build, env=env, check=True)
+        package = build / f"grok-bot-bin-{release['version']}-1-x86_64.pkg.tar.zst"
+        identity = subprocess.check_output(['pacman', '-Qp', str(package)], text=True).strip()
+        if identity != f"grok-bot-bin {release['version']}-1":
+            raise UpdateError('Built package identity mismatch')
+        # Publish only complete packages and their provenance, never partial downloads.
+        published = build / 'published'
+        published.mkdir()
+        shutil.move(package, published / package.name)
+        shutil.copyfile(build / 'PKGBUILD', published / 'PKGBUILD')
+        data = {'release': release, 'sha256': digest(published / package.name),
+                'recipe': recipe_id, 'verification': 'HTTPS upstream; locally computed SHA-256 (no publisher digest supplied)'}
+        (published / 'receipt.json').write_text(json.dumps(data, indent=2) + '\n')
+        published.rename(destination)
+    return destination / package.name, True
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--check', action='store_true', help='Check metadata without writing files')
+    mode.add_argument('--status', action='store_true', help='Show installed version and cached packages offline')
+    mode.add_argument('--install', action='store_true', help='Stage, then authenticate to install; app must be closed')
+    args = parser.parse_args()
+    if socket.gethostname() not in ('omarchy', 'omarchy-laptop') or platform.machine() != 'x86_64':
+        raise UpdateError('Only the two x86_64 Omarchy hosts are supported')
+    if os.geteuid() == 0:
+        raise UpdateError('Run as your normal user; never build packages as root')
+    current = installed()
+    print('Installed:', current, flush=True)
+    if args.status:
+        for receipt in sorted((CACHE / 'packages').glob('*/receipt.json')):
+            print('Staged:', receipt.parent)
+        return
+    release = release_metadata(json.loads(fetch(API)))
+    print('Official stable:', release['version'], flush=True)
+    if args.check:
+        print('Update available' if newer(release['version'], current) else 'Already current; no downgrade')
+        return
+    CACHE.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with (CACHE / 'update.lock').open('w') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise UpdateError('Another Grok Bot update is already running') from None
+        # Re-read after acquiring the lock. AUR may have installed a newer package.
+        if not newer(release['version'], installed()):
+            print('Already current; no downgrade')
+            return
+        package, _built = stage(release)
+        print('Staged:', package, flush=True)
+        if args.install:
+            if app_running():
+                raise UpdateError('Quit Grok Bot using its tray menu, then run grok-bot-update --install again')
+            # A system/AUR update may have completed while we downloaded/built.
+            if not newer(release['version'], installed()):
+                print('Already current; no downgrade')
+                return
+            command = ['sudo'] if sys.stdin.isatty() else ['pkexec']
+            # No passwordless policy, no package hooks of our own, no automatic restart.
+            subprocess.run([*command, '/usr/bin/pacman', '-U', '--noconfirm', str(package)], check=True)
+        else:
+            notified = package.parent / 'notified'
+            if not notified.exists() and notify(
+                    f"{release['version']} is ready. Quit Grok Bot, then run grok-bot-update --install."):
+                notified.touch()
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (UpdateError, OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
+        print(f'grok-bot-update: {exc}', file=sys.stderr)
+        sys.exit(1)

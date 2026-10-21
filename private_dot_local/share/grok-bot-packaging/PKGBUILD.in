@@ -1,0 +1,40 @@
+# Based on falser/rafaeloledo's AUR grok-bot-bin packaging (ISC; see LICENSE).
+# Generated only from validated official stable release metadata by grok-bot-update.
+pkgname=grok-bot-bin
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='Grok Bot desktop agent (upstream stable, Omarchy tray integration)'
+arch=('x86_64')
+url='https://x.ai/bot'
+license=('LicenseRef-Proprietary')
+depends=(gtk3 libnotify nss libxss libxtst xdg-utils at-spi2-core util-linux-libs
+         libsecret hicolor-icon-theme alsa-lib libappindicator libxkbcommon libdrm mesa)
+makedepends=('python')
+optdepends=('apparmor: load the shipped userns profile')
+provides=('sand' 'grok-bot')
+conflicts=('sand' 'grok-bot' 'grokbot-linux-port' 'grokbot-linux-port-bin' 'grok-bot-desktop' 'grok-bot-cursor')
+replaces=('grok-bot')
+options=('!strip' '!debug')
+source=('grok-bot_@VERSION@_amd64.deb' 'grok-bot.sh' 'linux-tray.cjs' 'extract-asar.py')
+sha256sums=('@DEB_SHA256@' '@LAUNCHER_SHA256@' '@TRAY_SHA256@' '@ASAR_SHA256@')
+noextract=('grok-bot_@VERSION@_amd64.deb')
+
+package() {
+    # Only the Debian data payload is used. Never execute Debian maintainer scripts.
+    bsdtar -xOf "${srcdir}/grok-bot_${pkgver}_amd64.deb" 'data.tar.*' \
+        | bsdtar -C "${pkgdir}" -xf -
+    local res="${pkgdir}/opt/Grok Bot/resources"
+    python "${srcdir}/extract-asar.py" inject-tray \
+        "${res}/app.asar" "${res}/app.asar.unpacked" "${srcdir}/linux-tray.cjs"
+    install -Dm644 "${res}/apparmor-profile" "${pkgdir}/etc/apparmor.d/grok-bot"
+    install -Dm755 "${srcdir}/grok-bot.sh" "${pkgdir}/usr/bin/grok-bot"
+    ln -s grok-bot "${pkgdir}/usr/bin/sand"
+    sed -i 's|^Exec=.*|Exec=grok-bot %U|' "${pkgdir}/usr/share/applications/grok-bot.desktop"
+    install -Dm644 "${pkgdir}/opt/Grok Bot/LICENSE.electron.txt" \
+        "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE.electron.txt"
+    install -Dm644 "${pkgdir}/opt/Grok Bot/LICENSES.chromium.html" \
+        "${pkgdir}/usr/share/licenses/${pkgname}/LICENSES.chromium.html"
+    rm -rf "${pkgdir}/usr/share/doc"
+    # These hosts use unprivileged user namespaces. Never install a setuid helper.
+    chmod 0755 "${pkgdir}/opt/Grok Bot/chrome-sandbox"
+}

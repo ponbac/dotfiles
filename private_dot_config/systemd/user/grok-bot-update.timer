@@ -1,0 +1,11 @@
+[Unit]
+Description=Check official Grok Bot stable releases hourly
+
+[Timer]
+OnBootSec=5min
+OnCalendar=hourly
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
