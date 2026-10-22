@@ -53,7 +53,7 @@ Use this skill to prepare the current work for review: describe the current `jj`
 
 6. **Find or create a draft PR.**
    - Determine the target base branch from the provider default branch, not by guessing when a CLI can tell you.
-   - Use the Conventional Commit subject as the PR title. Use the description body plus a short summary/checks section as the PR body.
+   - Use the Conventional Commit subject as the PR title. Write the PR body using the PR description guidance below; do not simply copy the commit body or narrate the diff.
    - In the commands below, use the selected JJ bookmark or Git branch as the PR source name.
 
    **GitHub (`gh`)**
@@ -96,6 +96,18 @@ Use this skill to prepare the current work for review: describe the current `jj`
    - Report the Conventional Commit description, bookmark/branch name, push result, and PR URL/ID.
    - Report attached media (or that none added value), including any failed Azure rollback cleanup.
    - Mention any checks run or skipped.
+
+## PR description guidance
+
+Write for a reviewer who understands the product but has not followed the task. Prefer this structure, keeping the description proportional to the change:
+
+1. **What and why.** Explain the observable change and the problem or motivation behind it. Where relevant, contrast before and after, give a concrete example, and link the issue or decision that establishes the intended behavior. Do not invent motivations, decisions, or references.
+2. **How.** Give a brief, plain-language (ELI5-style) explanation of the solution, usually 2–4 sentences. Describe the overall mechanism and why it solves the problem, at a higher level than individual code changes. Avoid a file-by-file recap, jargon, or a second summary of the diff.
+3. **Diagram — when useful.** Prefer a small Mermaid flowchart or sequence diagram when decisions, state transitions, or interactions are clearer visually. Give it a descriptive heading, such as "Decision flow". Show the relevant behavior after this PR, including important alternative paths; keep labels understandable and consistent with the implementation. Omit it for trivial changes or when it would merely repeat the prose. Use a simple text diagram if the provider does not render Mermaid.
+4. **Changes — only when useful.** Add concise implementation details, noteworthy trade-offs, compatibility/migration notes, or limitations that help review. Focus on consequential details rather than listing every changed file. Omit this section if What and why / How already explain enough.
+5. **Checks.** State which checks actually ran and their results, including relevant failures, warnings, and skipped checks with reasons. Distinguish automated checks from manual/in-app verification; do not imply unperformed verification. Describe important test scenarios here, or in a separate **Tests** section when that materially helps review.
+
+Add other sections (for example, cross-check findings or follow-up work) only when relevant and supported by the task. Do not copy all sections from a larger example PR by default. Avoid empty headings, filler, and repeated explanations. Review media belongs in a separate comment as described in step 7.
 
 ## Guardrails
 
