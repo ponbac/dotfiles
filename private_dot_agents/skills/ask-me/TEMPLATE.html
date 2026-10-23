@@ -1,0 +1,662 @@
+<!doctype html>
+<!--
+  ask-me shell. Copy it, set PAGE in the first <script>, replace the sample questions, keep the <style> and <script> as they are.
+  The page numbers questions, adds the inputs, letters, Recommended badges, own-answer rows, notes, nav, progress and the JSON copy.
+
+  Question   <section class="q" id="slug">                     id is the stable slug the copied JSON uses
+               <h2>Title</h2>
+               <p class="ctx">What we know. <a href="…">#1054</a></p>   with evidence links inline
+               <figure>…visual…</figure>                        optional: any component below
+               <div class="part" …>…</div>                      one or more; several parts make sub-questions
+             </section>
+  Part       <div class="part" data-part="slug" data-kind="one|many|buckets|rank" data-label="Short label"> … <p class="why">…</p></div>
+             .why is required: why the recommendation, then <span>What would change it: …</span>
+    one      <label class="opt" data-rec><b>Option label</b><p>Detail</p><div class="ex">Realistic example</div></label>
+    many     the same; mark every recommended option data-rec
+    buckets  data-buckets="Evaluate|Decide later|Not interested", then
+             <div class="item" data-rec="Evaluate"><b>Item</b><p>Detail</p><div class="ex">Example</div></div>
+    rank     <div class="item"><b>Item</b><p>Detail</p></div>, written in the recommended order
+  Keep or change, per screenshot: a section whose figure is the screenshot and whose part is "one" with Keep / Change options.
+  Settled    round 2 and later: a <section id="settled"> before the first question, holding a <table> of earlier answers.
+
+  Visuals, as in pr-walkthrough:
+    Mermaid    <div class="diagram"><pre class="mermaid">…</pre></div>; flowchart nodes A:::new, :::changed, :::context, :::risk.
+               Escape < > & in labels; a line break is &lt;br/&gt;.
+    Code       <pre class="code" data-lang="ts" data-start="203" data-hl="3,5-7" data-path="src/x.ts" data-href="…">…</pre>
+               add data-diff for a diff: every line starts with "+", "-" or " "; "@@" marks skipped lines. Escape < > &.
+    Media      <figure class="shot"><img data-shot="name"><figcaption>…</figcaption></figure>, data URIs in SHOTS.
+    Mock       any HTML inside <div class="panel">.
+    Tags       <span class="tag new|changed|context|high|medium|low">…</span>
+  Check      after load, await askMeCheck() returns what the skill's verify step checks.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask me</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0d1016;
+    --panel: #141922;
+    --panel-2: #1a202b;
+    --border: #262e3b;
+    --text: #e4e8ee;
+    --muted: #8b95a5;
+    --accent: #7aa2f7;
+    --new: #3fb950;
+    --changed: #e3a63b;
+    --risk: #f47067;
+    --add-bg: rgba(63, 185, 80, 0.13);
+    --del-bg: rgba(244, 112, 103, 0.13);
+    --hl-bg: rgba(122, 162, 247, 0.14);
+    --sel-bg: rgba(122, 162, 247, 0.09);
+    --radius: 10px;
+    --sans: "Inter", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: 72px; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--sans); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre, .mono { font-family: var(--mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  :not(pre) > code { font-size: 0.86em; background: var(--panel-2); border: 1px solid var(--border); border-radius: 5px; padding: 0.05em 0.35em; }
+  button { font: 500 14px var(--sans); color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 14px; cursor: pointer; white-space: nowrap; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #0d1016; border-color: transparent; font-weight: 600; }
+
+  nav.top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 24px; padding: 12px 40px;
+    background: rgba(13, 16, 22, 0.88); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+  nav.top .title { font-weight: 600; white-space: nowrap; }
+  nav.top .title span { color: var(--muted); font-weight: 400; }
+  nav.top .links { display: flex; gap: 4px; overflow-x: auto; flex: 1; }
+  nav.top .links a { color: var(--muted); font: 500 13px var(--mono); padding: 3px 8px; border-radius: 6px; border: 1px solid transparent; }
+  nav.top .links a:hover { color: var(--text); text-decoration: none; border-color: var(--border); }
+  nav.top .links a.done { color: var(--new); }
+  nav.top .prog { color: var(--muted); font-size: 14px; white-space: nowrap; }
+  nav.top .prog b { color: var(--text); }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 48px 40px 96px; }
+  header h1 { font-size: 36px; line-height: 1.15; letter-spacing: -0.02em; margin: 8px 0 14px; max-width: 30ch; }
+  .eyebrow { color: var(--muted); font: 500 13px var(--mono); }
+  .lead { font-size: 18px; color: #c9d0da; max-width: 78ch; margin: 0; }
+
+  section { padding-top: 56px; }
+  section.q { border-top: 1px solid var(--border); margin-top: 56px; padding-top: 40px; }
+  section.q h2 { font-size: 24px; letter-spacing: -0.01em; margin: 0 0 8px; }
+  section.q h2 .qn { color: var(--muted); font-weight: 500; margin-right: 10px; }
+  section.q.done h2 .qn { color: var(--new); }
+  .ctx { color: #c9d0da; max-width: 82ch; margin: 0; }
+  #settled h2 { font-size: 20px; margin: 0 0 10px; }
+
+  figure { margin: 20px 0 0; }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; max-width: 90ch; }
+  .diagram, .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; overflow-x: auto; }
+  pre.mermaid { margin: 0; display: flex; justify-content: center; background: none; font-family: var(--sans); }
+  pre.mermaid:not([data-processed]) { color: transparent; min-height: 120px; }
+  .tag { display: inline-block; font: 600 11px/1 var(--mono); letter-spacing: 0.04em; text-transform: uppercase; padding: 4px 7px;
+    border-radius: 5px; border: 1px solid currentColor; vertical-align: 2px; }
+  .tag.new { color: var(--new); } .tag.changed, .tag.medium { color: var(--changed); }
+  .tag.context, .tag.low { color: var(--muted); } .tag.high { color: var(--risk); }
+
+  .part { margin-top: 24px; max-width: 980px; }
+  .part > .plabel { font-weight: 600; margin-bottom: 10px; }
+  .part > .plabel span { color: var(--muted); font-weight: 400; font-size: 14px; }
+  .opts { display: grid; gap: 10px; }
+  .opt { display: grid; grid-template-columns: 24px 1fr; column-gap: 12px; align-items: start; padding: 14px 18px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+  .opt:hover { border-color: #3a4455; }
+  .opt.sel { border-color: var(--accent); background: var(--sel-bg); }
+  .opt > input { margin: 5px 0 0; width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+  .opt > .body > b { font-weight: 600; }
+  .opt .k { color: var(--muted); font-weight: 500; margin-right: 6px; }
+  .opt p, .item p { margin: 2px 0 0; color: var(--muted); font-size: 15px; }
+  .ex { margin-top: 10px; }
+  .ex > pre:not(.code):not(.mermaid) { margin: 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;
+    font-size: 13px; white-space: pre-wrap; }
+  .rec { display: inline-block; font: 600 11px/1 var(--mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--new);
+    border: 1px solid currentColor; border-radius: 5px; padding: 4px 7px; margin-left: 10px; vertical-align: 2px; }
+  .opt.own { border-style: dashed; cursor: default; align-items: center; }
+  .opt.own.sel { border-style: solid; }
+  input.own-text, textarea, input#then { width: 100%; font: 15px var(--sans); color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+  input.own-text:focus, textarea:focus, input#then:focus { outline: none; border-color: var(--accent); }
+  .why { margin: 12px 0 0; padding: 10px 16px; border-left: 3px solid var(--new); background: rgba(63, 185, 80, 0.07);
+    border-radius: 0 8px 8px 0; font-size: 15px; }
+  .why::before { content: "Recommended because: "; font-weight: 600; }
+  .why span { display: block; color: var(--muted); margin-top: 4px; }
+
+  .items { display: grid; gap: 10px; }
+  .item { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; }
+  .item.sorted { border-color: var(--accent); }
+  .item > b { font-weight: 600; }
+  .seg { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+  .seg button { background: transparent; }
+  .seg button.on { border-color: var(--accent); background: var(--sel-bg); color: var(--text); }
+  .seg button .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--new); margin-left: 8px; vertical-align: 1px; }
+  .rank .item { display: grid; grid-template-columns: 28px 30px 1fr auto; gap: 12px; align-items: center; cursor: grab; }
+  .rank .item.dragging { opacity: 0.4; }
+  .rank .grip { color: var(--muted); font-size: 18px; text-align: center; user-select: none; }
+  .rank .pos { font: 600 15px var(--mono); color: var(--muted); }
+  .rank .moves { display: flex; gap: 4px; }
+  .rank .moves button { padding: 3px 9px; }
+  .rank-bar { display: flex; gap: 10px; align-items: center; margin-top: 10px; color: var(--muted); font-size: 14px; }
+  .rank-bar .ok { color: var(--new); }
+
+  details.note { margin-top: 16px; max-width: 980px; }
+  details.note summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+  details.note textarea { margin-top: 8px; min-height: 64px; resize: vertical; }
+
+  .code-block { margin: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--panel); }
+  figure .code-block + .code-block, .ex .code-block + .code-block { margin-top: 12px; }
+  .code-block .cap { display: flex; justify-content: space-between; gap: 16px; padding: 9px 16px; font: 13px var(--mono);
+    color: var(--muted); border-bottom: 1px solid var(--border); background: var(--panel-2); }
+  .code-block pre { margin: 0; padding: 14px 0; font-size: 13.5px; line-height: 1.65; white-space: normal; tab-size: 2; background: transparent !important; }
+  .code-block pre code { counter-reset: ln calc(var(--start, 1) - 1); display: block; }
+  .code-block .line { display: block; position: relative; min-height: 1.65em; padding: 0 18px 0 64px; white-space: pre-wrap;
+    word-break: break-word; border-left: 3px solid transparent; }
+  .code-block .line::before { counter-increment: ln; content: counter(ln); position: absolute; left: 0; width: 44px; text-align: right; color: #4b5566; }
+  .code-block .line.hl { background: var(--hl-bg); border-left-color: var(--accent); }
+  .code-block .line.add { background: var(--add-bg); border-left-color: var(--new); }
+  .code-block .line.del { background: var(--del-bg); border-left-color: var(--risk); }
+  .code-block.diff .line::before { content: ""; counter-increment: none; }
+  .code-block.diff .line.add::before { content: "+"; color: var(--new); }
+  .code-block.diff .line.del::before { content: "−"; color: var(--risk); }
+  .code-block .line.skip { color: #4b5566; text-align: center; letter-spacing: 0.3em; }
+
+  .shot img { display: block; max-width: 100%; height: auto; border-radius: var(--radius); border: 1px solid var(--border); background: var(--panel); cursor: zoom-in; }
+  #lightbox { position: fixed; inset: 0; z-index: 50; display: none; place-items: center; background: rgba(0, 0, 0, 0.88); cursor: zoom-out; padding: 24px; }
+  #lightbox.open { display: grid; }
+  #lightbox img { max-width: 100%; max-height: 100%; border-radius: 6px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+
+  #answers { border-top: 1px solid var(--border); margin-top: 64px; padding-top: 40px; }
+  #answers h2 { font-size: 24px; margin: 0 0 16px; }
+  #answers label { display: block; font-weight: 600; margin-bottom: 6px; }
+  #answers .row { display: flex; gap: 12px; align-items: center; margin: 16px 0 12px; }
+  #answers .flash { color: var(--new); font-size: 14px; }
+  #answers .missing { color: var(--changed); font-size: 14px; }
+  #answers textarea { min-height: 280px; font: 13px/1.5 var(--mono); }
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<nav class="top">
+  <div class="title" id="navTitle"></div>
+  <div class="links" id="navLinks"></div>
+  <div class="prog" id="prog"></div>
+  <button id="acceptAll">Accept remaining recommendations</button>
+  <button class="primary" id="toAnswers">Copy answers</button>
+</nav>
+
+<main>
+  <header>
+    <div class="eyebrow">{{repo or topic}} · round {{n}} · {{YYYY-MM-DD}}</div>
+    <h1>{{What these questions decide, as a plain sentence}}</h1>
+    <p class="lead">{{One or two sentences: why these questions, and what happens with the answers.}}</p>
+  </header>
+
+  <section class="q" id="expired-coupon">
+    <h2>An expired coupon at checkout</h2>
+    <p class="ctx">Checkout validates coupons only when they're added to the cart, so a coupon can expire before payment. It happened 41 times last month (<a href="#">#212</a>).</p>
+    <figure>
+      <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  cart[Cart: coupon added]:::context --> pay[Pay]:::context
+  pay --> check{Still valid?}:::new
+  check -- yes --> charge[Charge with discount]:::context
+  check -- no --> what[?]:::risk
+</pre>
+      </div>
+      <figcaption>The question is what happens on the red branch.</figcaption>
+    </figure>
+    <div class="part" data-part="behaviour" data-kind="one" data-label="What checkout does">
+      <label class="opt"><b>Reject the order</b><p>The customer starts over.</p>
+        <div class="ex"><pre>“Kupongen SOMMAR25 har gått ut. Ordern skapades inte.”</pre></div></label>
+      <label class="opt" data-rec><b>Charge without the discount, and say so</b><p>The order goes through at full price after a confirm step.</p>
+        <div class="ex"><pre>“Kupongen SOMMAR25 gick ut 14:02. Nytt pris: 1 249 kr (var 999 kr). Bekräfta?”</pre></div></label>
+      <label class="opt"><b>Honour it for 24 hours</b><p>Expired coupons still apply for a day.</p>
+        <div class="ex"><pre>Coupon expired 2026-10-22 23:59, order 2026-10-23 08:15 → 999 kr</pre></div></label>
+      <p class="why">The customer keeps their cart and sees the real price before paying.<span>What would change it: if marketing treats expiry as a hard deadline, reject.</span></p>
+    </div>
+  </section>
+
+  <section class="q" id="coupon-methods">
+    <h2>Which payment methods take coupons</h2>
+    <p class="ctx">Today only card payments apply coupons (<a href="#">checkout.ts:48</a>).</p>
+    <figure>
+<pre class="code" data-lang="ts" data-start="46" data-hl="3" data-path="src/checkout.ts" data-href="#">export function applyCoupon(order: Order): Money {
+  const total = subtotal(order);
+  if (order.method !== "card") return total;
+  return total.minus(order.coupon?.amount ?? 0);
+}</pre>
+    </figure>
+    <div class="part" data-part="methods" data-kind="many" data-label="Methods">
+      <label class="opt" data-rec><b>Card</b><p>As today.</p><div class="ex"><pre>Visa •••• 4242 → 999 kr</pre></div></label>
+      <label class="opt" data-rec><b>Swish</b><p>Most mobile orders.</p><div class="ex"><pre>Swish 070-123 45 67 → 999 kr</pre></div></label>
+      <label class="opt"><b>Invoice</b><p>Business customers; coupons rarely apply.</p><div class="ex"><pre>Faktura 30 dagar → 1 249 kr</pre></div></label>
+      <p class="why">Card and Swish are 94% of orders with a coupon.<span>What would change it: a business campaign that needs invoice coupons.</span></p>
+    </div>
+  </section>
+
+  <section class="q" id="follow-ups">
+    <h2>Which follow-ups to plan</h2>
+    <p class="ctx">Three ideas came up while looking at coupons.</p>
+    <div class="part" data-part="ideas" data-kind="buckets" data-buckets="Plan now|Decide later|Not interested" data-label="Ideas">
+      <div class="item" data-rec="Plan now"><b>Warn in the cart before a coupon expires</b><p>A banner when under an hour is left.</p>
+        <div class="ex"><pre>“SOMMAR25 går ut om 42 min.”</pre></div></div>
+      <div class="item" data-rec="Decide later"><b>Stack two coupons</b><p>Needs a rule for which applies first.</p>
+        <div class="ex"><pre>SOMMAR25 + FRIFRAKT → 999 kr, free shipping</pre></div></div>
+      <div class="item" data-rec="Not interested"><b>Coupons per customer group</b><p>No customer groups exist yet.</p>
+        <div class="ex"><pre>Group “Företag” → 10% off</pre></div></div>
+      <p class="why">Only the warning fixes the 41 failures; the others are new features.<span>What would change it: a campaign that needs stacking soon.</span></p>
+    </div>
+  </section>
+
+  <section class="q" id="build-order">
+    <h2>Build order</h2>
+    <p class="ctx">Each step is one PR. Drag or use the arrows; the list starts in the recommended order.</p>
+    <div class="part" data-part="order" data-kind="rank" data-label="Order">
+      <div class="item"><b>Re-check validity at payment</b><p>Fixes the failures on its own.</p></div>
+      <div class="item"><b>Confirm step for the new price</b><p>Needs the re-check.</p></div>
+      <div class="item"><b>Swish coupons</b><p>Independent of the others.</p></div>
+      <p class="why">The re-check stops the failures first; the confirm step builds on it.<span>What would change it: a Swish campaign starting this month.</span></p>
+    </div>
+  </section>
+
+  <section id="answers">
+    <h2>Copy your answers</h2>
+    <label for="then">Then</label>
+    <input id="then" type="text">
+    <div class="row">
+      <button class="primary" id="copyBtn">Copy answers</button>
+      <span class="flash" id="flash" hidden></span>
+      <span class="missing" id="missing"></span>
+    </div>
+    <textarea id="json" readonly></textarea>
+  </section>
+
+  <footer>{{Example values are illustrative.}}</footer>
+</main>
+
+<div id="lightbox"><img alt=""></div>
+
+<script>
+  // The page's identity. Answers are saved in this browser under the title and round.
+  const PAGE = {
+    title: "{{Page title}}",
+    round: 1,
+    date: "{{YYYY-MM-DD}}",
+    then: "{{What the agent does with the answers, e.g. Update the listed issues with these decisions.}}",
+  };
+  // Base64 data URIs, keyed by name; <img data-shot="name"> reads from here.
+  const SHOTS = {
+    // editor: "data:image/webp;base64,…",
+  };
+</script>
+
+<script>
+  for (const el of document.querySelectorAll("[data-shot]")) el.src = SHOTS[el.dataset.shot] ?? "";
+  const lightbox = document.getElementById("lightbox");
+  document.addEventListener("click", (e) => {
+    const img = e.target.closest(".shot img");
+    if (img) { lightbox.querySelector("img").src = img.src; lightbox.classList.add("open"); }
+    else if (e.target.closest("#lightbox")) lightbox.classList.remove("open");
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") lightbox.classList.remove("open"); });
+
+  const STORE = `ask-me:${PAGE.title}:r${PAGE.round}`;
+  const letter = (i) => String.fromCharCode(65 + i);
+  const label = (el) => el.querySelector(":scope > b, :scope > .body > b")?.textContent.trim().replace(/\s+/g, " ") ?? "";
+  const sections = [...document.querySelectorAll("section.q")];
+  const parts = [];
+  let state = { parts: {}, own: {}, notes: {}, then: PAGE.then };
+  try { state = { ...state, ...JSON.parse(localStorage.getItem(STORE)) }; } catch {}
+
+  document.getElementById("navTitle").innerHTML = `${PAGE.title} <span>· round ${PAGE.round}</span>`;
+  document.title = `${PAGE.title} · round ${PAGE.round}`;
+
+  sections.forEach((sec, qi) => {
+    sec.querySelector("h2").insertAdjacentHTML("afterbegin", `<span class="qn">Q${qi + 1}</span>`);
+    document.getElementById("navLinks").insertAdjacentHTML("beforeend", `<a href="#${sec.id}" data-q="${sec.id}">Q${qi + 1}</a>`);
+    const secParts = [...sec.querySelectorAll(".part")];
+    for (const el of secParts) {
+      const p = { el, sec, key: `${sec.id}.${el.dataset.part}`, kind: el.dataset.kind, label: el.dataset.label ?? "" };
+      parts.push(p);
+      const why = el.querySelector(":scope > .why");
+      if (secParts.length > 1 || p.kind !== "one")
+        el.insertAdjacentHTML("afterbegin", `<div class="plabel">${p.label} <span>${{ one: "", many: "· pick any", buckets: "· sort each", rank: "· drag to order" }[p.kind]}</span></div>`);
+      ({ one: setupChoice, many: setupChoice, buckets: setupBuckets, rank: setupRank })[p.kind](p);
+      if (why) el.append(why);
+    }
+    sec.insertAdjacentHTML("beforeend", `<details class="note"><summary>Add a note</summary><textarea data-note="${sec.id}" placeholder="Anything the options miss"></textarea></details>`);
+    const note = sec.querySelector("[data-note]");
+    note.value = state.notes[sec.id] ?? "";
+    if (note.value) note.closest("details").open = true;
+  });
+
+  function setupChoice(p) {
+    const type = p.kind === "one" ? "radio" : "checkbox";
+    const wrap = document.createElement("div");
+    wrap.className = "opts";
+    p.opts = [...p.el.querySelectorAll(":scope > .opt")];
+    p.opts.forEach((o, i) => {
+      const body = document.createElement("div");
+      body.className = "body";
+      body.append(...o.childNodes);
+      o.append(body);
+      o.insertAdjacentHTML("afterbegin", `<input type="${type}" name="${p.key}" value="${i}">`);
+      body.querySelector(":scope > b").insertAdjacentHTML("beforebegin", `<span class="k">${letter(i)}.</span>`);
+      if (o.hasAttribute("data-rec")) body.querySelector(":scope > b").insertAdjacentHTML("afterend", `<span class="rec">Recommended</span>`);
+      wrap.append(o);
+    });
+    wrap.insertAdjacentHTML("beforeend", `<label class="opt own"><input type="${type}" name="${p.key}" value="own"><input class="own-text" type="text" placeholder="Write your own answer"></label>`);
+    p.el.append(wrap);
+    const own = wrap.querySelector(".own-text");
+    own.value = state.own[p.key] ?? "";
+    for (const v of state.parts[p.key] ?? []) { const i = wrap.querySelector(`input[value="${v}"]`); if (i) i.checked = true; }
+    wrap.addEventListener("change", () => readChoice(p));
+    own.addEventListener("input", () => {
+      state.own[p.key] = own.value;
+      const box = own.previousElementSibling;
+      if (own.value.trim() && !box.checked) { box.checked = true; readChoice(p); } else sync();
+    });
+  }
+  function readChoice(p) {
+    const vals = [...p.el.querySelectorAll(`input[name="${p.key}"]:checked`)].map((i) => i.value);
+    state.parts[p.key] = vals.length ? vals : undefined;
+    sync();
+  }
+
+  function setupBuckets(p) {
+    p.buckets = p.el.dataset.buckets.split("|");
+    p.items = [...p.el.querySelectorAll(":scope > .item")];
+    const wrap = document.createElement("div");
+    wrap.className = "items";
+    p.items.forEach((it, i) => {
+      const seg = document.createElement("div");
+      seg.className = "seg";
+      for (const b of p.buckets) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.dataset.bucket = b;
+        btn.innerHTML = b + (it.dataset.rec === b ? `<span class="dot" title="Recommended"></span>` : "");
+        btn.onclick = () => {
+          const cur = { ...(state.parts[p.key] ?? {}) };
+          if (cur[i] === b) delete cur[i]; else cur[i] = b;
+          state.parts[p.key] = cur;
+          sync();
+        };
+        seg.append(btn);
+      }
+      if (it.dataset.rec) it.querySelector(":scope > b").insertAdjacentHTML("afterend", `<span class="rec">Recommended: ${it.dataset.rec}</span>`);
+      it.append(seg);
+      wrap.append(it);
+    });
+    p.el.append(wrap);
+  }
+
+  function setupRank(p) {
+    p.items = [...p.el.querySelectorAll(":scope > .item")];
+    const list = document.createElement("div");
+    list.className = "items rank";
+    p.items.forEach((it, i) => {
+      it.dataset.i = i;
+      it.draggable = true;
+      const body = document.createElement("div");
+      body.className = "body";
+      body.append(...it.childNodes);
+      it.append(body);
+      it.insertAdjacentHTML("afterbegin", `<span class="grip">⋮⋮</span><span class="pos"></span>`);
+      it.insertAdjacentHTML("beforeend", `<span class="moves"><button type="button" data-d="-1" aria-label="Move up">↑</button><button type="button" data-d="1" aria-label="Move down">↓</button></span>`);
+      list.append(it);
+    });
+    const bar = document.createElement("div");
+    bar.className = "rank-bar";
+    bar.innerHTML = `<button type="button" data-keep>Keep this order</button><button type="button" data-reset>Back to the recommended order</button><span class="state"></span>`;
+    p.el.append(list, bar);
+    const order = state.parts[p.key]?.order;
+    if (order) for (const i of order) list.append(p.items[i]);
+    const commit = () => { state.parts[p.key] = { order: [...list.children].map((c) => +c.dataset.i) }; sync(); };
+    list.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-d]");
+      if (!btn) return;
+      const it = btn.closest(".item"), d = +btn.dataset.d;
+      if (d < 0 && it.previousElementSibling) list.insertBefore(it, it.previousElementSibling);
+      if (d > 0 && it.nextElementSibling) list.insertBefore(it.nextElementSibling, it);
+      commit();
+    });
+    let dragged = null;
+    list.addEventListener("dragstart", (e) => { dragged = e.target.closest(".item"); dragged.classList.add("dragging"); });
+    list.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      const over = e.target.closest(".item");
+      if (!over || over === dragged) return;
+      const r = over.getBoundingClientRect();
+      list.insertBefore(dragged, e.clientY > r.top + r.height / 2 ? over.nextElementSibling : over);
+    });
+    list.addEventListener("dragend", () => { dragged?.classList.remove("dragging"); dragged = null; commit(); });
+    bar.querySelector("[data-keep]").onclick = commit;
+    bar.querySelector("[data-reset]").onclick = () => { p.items.forEach((it) => list.append(it)); delete state.parts[p.key]; sync(); };
+    p.list = list;
+    p.bar = bar;
+  }
+
+  function answered(p, st = state) {
+    const v = st.parts[p.key];
+    if (p.kind === "buckets") return p.items.every((_, i) => v?.[i]);
+    return p.kind === "rank" ? Boolean(v) : Boolean(v?.length);
+  }
+
+  function fillRecommended(st) {
+    for (const p of parts) {
+      if (answered(p, st)) continue;
+      if (p.kind === "one" || p.kind === "many") {
+        const recs = p.opts.map((o, i) => (o.hasAttribute("data-rec") ? String(i) : null)).filter(Boolean);
+        if (recs.length) st.parts[p.key] = p.kind === "one" ? recs.slice(0, 1) : recs;
+      } else if (p.kind === "buckets") {
+        const cur = { ...(st.parts[p.key] ?? {}) };
+        p.items.forEach((it, i) => { if (!cur[i] && p.buckets.includes(it.dataset.rec)) cur[i] = it.dataset.rec; });
+        st.parts[p.key] = cur;
+      } else st.parts[p.key] = { order: p.items.map((_, i) => i) };
+    }
+  }
+
+  function answerOf(p, st) {
+    const v = st.parts[p.key];
+    if (p.kind === "one" || p.kind === "many") {
+      if (!v?.length) return null;
+      const picks = v.map((x) => (x === "own"
+        ? { own: (st.own[p.key] ?? "").trim() }
+        : { option: letter(+x), label: label(p.opts[+x]), recommended: p.opts[+x].hasAttribute("data-rec") }));
+      return p.kind === "one" ? picks[0] : picks;
+    }
+    if (p.kind === "buckets")
+      return Object.fromEntries(p.items.map((it, i) => [label(it), v?.[i] ? { bucket: v[i], recommended: v[i] === it.dataset.rec } : null]));
+    return v ? { order: v.order.map((i) => label(p.items[i])), recommended: v.order.every((x, i) => x === i) } : null;
+  }
+
+  function answersJson(st) {
+    const unanswered = [];
+    const answers = sections.map((sec, qi) => {
+      const own = parts.filter((p) => p.sec === sec);
+      if (!own.every((p) => answered(p, st))) unanswered.push(`Q${qi + 1}`);
+      return {
+        q: `Q${qi + 1}`, id: sec.id, question: [...sec.querySelector("h2").childNodes].filter((n) => !n.classList?.contains("qn")).map((n) => n.textContent).join("").trim(),
+        parts: own.map((p) => ({ id: p.el.dataset.part, label: p.label, answer: answerOf(p, st) })),
+        note: (st.notes[sec.id] ?? "").trim() || null,
+      };
+    });
+    return { page: PAGE.title, round: PAGE.round, date: PAGE.date, then: (st.then ?? "").trim() || null, answers, unanswered };
+  }
+
+  function sync() {
+    for (const p of parts) {
+      if (p.opts) p.el.querySelectorAll(".opt").forEach((o) => o.classList.toggle("sel", o.querySelector("input").checked));
+      if (p.kind === "buckets") p.items.forEach((it, i) => {
+        const b = state.parts[p.key]?.[i];
+        it.classList.toggle("sorted", Boolean(b));
+        it.querySelectorAll(".seg button").forEach((btn) => btn.classList.toggle("on", btn.dataset.bucket === b));
+      });
+      if (p.kind === "rank") {
+        [...p.list.children].forEach((it, i) => { it.querySelector(".pos").textContent = i + 1; });
+        p.bar.querySelector(".state").innerHTML = state.parts[p.key] ? `<span class="ok">Order chosen</span>` : "Not chosen yet";
+      }
+    }
+    let done = 0;
+    for (const sec of sections) {
+      const ok = parts.filter((p) => p.sec === sec).every((p) => answered(p));
+      sec.classList.toggle("done", ok);
+      document.querySelector(`#navLinks a[data-q="${sec.id}"]`).classList.toggle("done", ok);
+      done += ok;
+    }
+    document.getElementById("prog").innerHTML = `<b>${done}</b> of ${sections.length} answered`;
+    const out = answersJson(state);
+    document.getElementById("missing").textContent = out.unanswered.length ? `Unanswered: ${out.unanswered.join(", ")}` : "";
+    document.getElementById("json").value = JSON.stringify(out, null, 2);
+    try { localStorage.setItem(STORE, JSON.stringify(state)); } catch {}
+  }
+
+  document.addEventListener("input", (e) => {
+    if (e.target.dataset.note) { state.notes[e.target.dataset.note] = e.target.value; sync(); }
+    if (e.target.id === "then") { state.then = e.target.value; sync(); }
+  });
+  document.getElementById("then").value = state.then ?? "";
+  document.getElementById("acceptAll").onclick = () => {
+    fillRecommended(state);
+    for (const p of parts) {
+      if (p.opts) for (const v of state.parts[p.key] ?? []) p.el.querySelector(`input[name="${p.key}"][value="${v}"]`).checked = true;
+      if (p.kind === "rank" && state.parts[p.key]) for (const i of state.parts[p.key].order) p.list.append(p.items[i]);
+    }
+    sync();
+  };
+  document.getElementById("toAnswers").onclick = () => document.getElementById("answers").scrollIntoView({ behavior: "smooth" });
+  document.getElementById("copyBtn").onclick = async () => {
+    const ta = document.getElementById("json"), flash = document.getElementById("flash");
+    let ok = false;
+    try { await navigator.clipboard.writeText(ta.value); ok = true; } catch {}
+    if (!ok) { ta.focus(); ta.select(); try { ok = document.execCommand("copy"); } catch {} }
+    flash.textContent = ok ? "Copied. Paste it into the thread." : "Copy was blocked; the text is selected, press Ctrl+C.";
+    flash.hidden = false;
+    setTimeout(() => (flash.hidden = true), 4000);
+  };
+  sync();
+
+  // The verify step's checks in one call: await askMeCheck(). Every list should come back empty and ready true.
+  window.askMeCheck = async () => {
+    const until = Date.now() + 20000;
+    const root = document.documentElement.dataset;
+    while (!(root.diagrams && root.code) && Date.now() < until) await new Promise((r) => setTimeout(r, 200));
+    const ids = [...document.querySelectorAll("[id]")].map((e) => e.id).filter((id) => !id.startsWith("mermaid-"));
+    const sim = structuredClone({ ...state, parts: {} });
+    fillRecommended(sim);
+    let copy = null;
+    try { copy = JSON.parse(JSON.stringify(answersJson(sim))); } catch {}
+    return {
+      ready: Boolean(root.diagrams && root.code),
+      noContext: sections.filter((s) => !s.querySelector(":scope > .ctx")).map((s) => s.id),
+      noWhy: parts.filter((p) => !p.el.querySelector(":scope > .why")).map((p) => p.key),
+      noRecommendation: parts.filter((p) =>
+        (p.opts && !p.opts.some((o) => o.hasAttribute("data-rec"))) ||
+        (p.kind === "buckets" && p.items.some((it) => !p.buckets.includes(it.dataset.rec)))).map((p) => p.key),
+      noExample: parts.flatMap((p) => (p.opts ?? (p.kind === "buckets" ? p.items : []))
+        .filter((o) => !o.querySelector(".ex")).map((o) => `${p.key}: ${label(o)}`)),
+      noLabel: parts.flatMap((p) => (p.opts ?? p.items).filter((o) => !label(o)).map(() => p.key)),
+      notFilledByRecommendations: copy ? copy.unanswered : ["copy failed"],
+      brokenDiagrams: [...document.querySelectorAll("pre.mermaid")]
+        .filter((e) => !e.querySelector("svg") || /Syntax error/.test(e.textContent)).map((e) => e.closest("section")?.id),
+      tallDiagrams: [...document.querySelectorAll("pre.mermaid svg")]
+        .filter((s) => s.getBoundingClientRect().height > 700).map((s) => s.closest("section")?.id),
+      unhighlighted: [...document.querySelectorAll("pre.code")].map((e) => e.dataset.path),
+      brokenMedia: [...document.querySelectorAll(".shot img, img[data-shot]")].filter((i) => !i.naturalWidth)
+        .map((e) => e.dataset.shot || e.getAttribute("src")?.slice(0, 40)),
+      duplicateIds: ids.filter((id, i) => ids.indexOf(id) !== i),
+      placeholders: [...(document.body.innerText.match(/\{\{[^}]*\}\}/g) ?? []),
+        ...Object.values(PAGE).filter((v) => String(v).includes("{{")),
+        ...[...document.querySelectorAll('[href*="{{"]')].map((e) => e.getAttribute("href"))],
+      overflowX: document.documentElement.scrollWidth > window.innerWidth,
+    };
+  };
+</script>
+
+<script type="module">
+  // Diagrams
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  const CLASSES = `
+  classDef new fill:#12281a,stroke:#3fb950,stroke-width:2px,color:#e4e8ee
+  classDef changed fill:#2a2112,stroke:#e3a63b,stroke-width:2px,color:#e4e8ee
+  classDef context fill:#1a202b,stroke:#4b5566,color:#8b95a5
+  classDef risk fill:#2c1615,stroke:#f47067,stroke-width:2px,color:#e4e8ee`;
+  for (const el of document.querySelectorAll("pre.mermaid")) {
+    if (/^\s*(flowchart|graph)\b/.test(el.textContent)) el.insertAdjacentText("beforeend", "\n" + CLASSES);
+  }
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: "base",
+    flowchart: { nodeSpacing: 28, rankSpacing: 40, padding: 12 },
+    fontFamily: "Inter, system-ui, sans-serif",
+    themeVariables: {
+      darkMode: true, background: "#141922", fontSize: "15px",
+      primaryColor: "#1a202b", primaryTextColor: "#e4e8ee", primaryBorderColor: "#3a4455",
+      secondaryColor: "#1a202b", tertiaryColor: "#141922", lineColor: "#6b7685", textColor: "#e4e8ee",
+      actorBkg: "#1a202b", actorBorder: "#3a4455", actorTextColor: "#e4e8ee", signalColor: "#8b95a5", signalTextColor: "#e4e8ee",
+      noteBkgColor: "#2a2112", noteTextColor: "#e4e8ee", noteBorderColor: "#e3a63b",
+      edgeLabelBackground: "#141922", clusterBkg: "#11151c", clusterBorder: "#262e3b",
+    },
+  });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.documentElement.dataset.diagrams = "ready";
+</script>
+
+<script type="module">
+  // Code
+  import { codeToHtml } from "https://esm.sh/shiki@3";
+  const ranges = (spec) => {
+    const set = new Set();
+    for (const part of (spec ?? "").split(",").filter(Boolean)) {
+      const [a, b = a] = part.split("-").map(Number);
+      for (let i = a; i <= b; i++) set.add(i);
+    }
+    return set;
+  };
+  for (const pre of document.querySelectorAll("pre.code")) {
+    const { lang = "text", start = "1", hl, path, href } = pre.dataset;
+    let source = pre.textContent.replace(/\n$/, "");
+    const marks = new Map();
+    if ("diff" in pre.dataset) {
+      source = source.split("\n").map((l, i) => {
+        if (l.trim() === "@@") { marks.set(i + 1, "skip"); return " ⋯"; }
+        if (l[0] === "+") marks.set(i + 1, "add");
+        if (l[0] === "-") marks.set(i + 1, "del");
+        return l.slice(1);
+      }).join("\n");
+    }
+    const lit = ranges(hl);
+    const html = await codeToHtml(source, {
+      lang, theme: "github-dark-default",
+      transformers: [{ line(node, n) {
+        if (lit.has(n)) this.addClassToHast(node, "hl");
+        if (marks.has(n)) this.addClassToHast(node, marks.get(n));
+      } }],
+    }).catch(() => null);
+    const block = document.createElement("div");
+    block.className = "diff" in pre.dataset ? "code-block diff" : "code-block";
+    const cap = path ? (href ? `<a href="${href}">${path}</a>` : path) : lang;
+    block.innerHTML = `<div class="cap"><span>${cap}</span><span>${"diff" in pre.dataset ? "diff" : `from line ${start}`}</span></div>`;
+    if (html) block.insertAdjacentHTML("beforeend", html);
+    else { pre.classList.remove("code"); block.append(pre.cloneNode(true)); }
+    block.querySelector("pre code")?.style.setProperty("--start", start);
+    pre.replaceWith(block);
+  }
+  document.documentElement.dataset.code = "ready";
+</script>
+</body>
+</html>
