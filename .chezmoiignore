@@ -46,6 +46,7 @@ manifests
 .local/bin/grok-bot-update
 .local/share/grok-bot-packaging
 .local/share/omarchy-overrides
+.local/share/vicinae
 .config/environment.d/60-t3code-nightly.conf
 .local/bin/t3code-nightly
 .local/bin/t3code-nightly-update

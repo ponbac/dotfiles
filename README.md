@@ -123,6 +123,8 @@ Bring those edits back and review them before using SSH deployment.
 - Clean shared Bash fragment, Git preferences, JJ, Herdr, tmux and Starship.
 - Omarchy-only user configuration, custom plugins, terminal preferences and
   selected service definitions. Hardware/layout differences use host templates.
+- Vicinae script command `tw <channel>` (Omarchy desktops only): opens a Twitch
+  channel in mpv at best quality (up to 1080p60) via yt-dlp. Needs `mpv` and `yt-dlp`.
 
 Agent `modify_` sources merge selected keys with current settings. They preserve
 host-local tokens, project trust, desktop-generated Codex plugins/marketplaces,
