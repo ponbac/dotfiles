@@ -48,6 +48,7 @@ manifests
 .local/share/omarchy-overrides
 .local/share/vicinae
 .local/bin/bot-hook
+.config/systemd/user/vicinae.service.d
 .config/environment.d/60-t3code-nightly.conf
 .local/bin/t3code-nightly
 .local/bin/t3code-nightly-update

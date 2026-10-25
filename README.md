@@ -129,6 +129,9 @@ Bring those edits back and review them before using SSH deployment.
   message to that Grok Bot agent's webhook through `~/.local/bin/bot-hook`. Webhook URL and key
   live per bot in `~/.config/bot-hooks/<bot>.env` (not synced); create them with
   `bot-hook --setup <bot>`. Needs `curl` and `jq`.
+- Vicinae file-indexer off switch (Omarchy desktops only): a systemd user drop-in
+  (`~/.config/systemd/user/vicinae.service.d/no-file-indexer.conf`) hides `vicinae-file-indexer`,
+  which otherwise indexed millions of files and wrote ~10 MB/s. Delete the file to re-enable.
 
 Agent `modify_` sources merge selected keys with current settings. They preserve
 host-local tokens, project trust, desktop-generated Codex plugins/marketplaces,
