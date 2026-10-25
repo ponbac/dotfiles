@@ -125,6 +125,10 @@ Bring those edits back and review them before using SSH deployment.
   selected service definitions. Hardware/layout differences use host templates.
 - Vicinae script command `tw <channel>` (Omarchy desktops only): opens a Twitch
   channel in mpv at best quality (up to 1080p60) via yt-dlp. Needs `mpv` and `yt-dlp`.
+- Vicinae script commands `kite`, `gon` and `nudge` (Omarchy desktops only): send a free-text
+  message to that Grok Bot agent's webhook through `~/.local/bin/bot-hook`. Webhook URL and key
+  live per bot in `~/.config/bot-hooks/<bot>.env` (not synced); create them with
+  `bot-hook --setup <bot>`. Needs `curl` and `jq`.
 
 Agent `modify_` sources merge selected keys with current settings. They preserve
 host-local tokens, project trust, desktop-generated Codex plugins/marketplaces,
