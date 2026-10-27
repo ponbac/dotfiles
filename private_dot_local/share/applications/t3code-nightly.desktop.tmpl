@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=T3 Code (Nightly)
-Exec={{ .chezmoi.homeDir }}/.local/bin/t3code-nightly %U
+Exec=/usr/bin/systemd-run --user --collect --quiet {{ .chezmoi.homeDir }}/.local/bin/t3code-nightly %U
 Terminal=false
 Type=Application
 Icon={{ .chezmoi.homeDir }}/.local/share/icons/t3code-nightly-custom.png

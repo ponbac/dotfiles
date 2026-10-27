@@ -360,8 +360,13 @@ excluded on `dev-1` and unknown hosts; dev-1 retains its independent CLI updater
   (about 160 MB per staged release) and review old images before manual cleanup.
 - `~/.local/bin/t3code-nightly` launches the image and preserves the package's
   Wayland behavior and optional `~/.config/t3code-nightly-flags.conf` arguments.
-  The managed desktop entry uses this absolute launcher and the existing custom
-  icon. No package launcher is required after migration.
+  The managed desktop entry starts this absolute launcher through
+  `systemd-run --user --collect --quiet`, with the existing custom icon. This
+  gives the AppImage a fresh user-service environment: launching directly from
+  Vicinae can inherit its filesystem namespace restrictions and fail to mount
+  the image through FUSE (`fusermount: mount failed: Operation not permitted`).
+  Vicinae's file-indexer restriction remains intact; no sandbox relaxation or
+  package launcher is required after migration.
 - `t3code-nightly-update.timer` checks daily at **03:00 local time**, with up to
   ten minutes of jitter, and two minutes after the user manager starts (login,
   or boot if linger is enabled). `Persistent=true` catches missed calendar runs;
