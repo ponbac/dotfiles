@@ -1,0 +1,6 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- $current := dict -}}
+{{- if .chezmoi.stdin -}}{{- $current = fromJsonc .chezmoi.stdin -}}{{- end -}}
+{{- /* Disable the indexer natively; systemd InaccessiblePaths also isolates every launched app. */ -}}
+{{- $policy := dict "providers" (dict "files" (dict "preferences" (dict "autoIndexing" false))) -}}
+{{- includeTemplate "agents/keep-format" (dict "stdin" .chezmoi.stdin "value" (mergeOverwrite $current $policy) "format" "json") -}}

@@ -9,6 +9,11 @@
 .local/share/applications/t3code-url-handler.desktop
 {{- end }}
 
+# Retire Vicinae's namespace workaround; native autoIndexing=false keeps indexing off.
+{{- if has .chezmoi.hostname (list "omarchy" "omarchy-laptop") }}
+.config/systemd/user/vicinae.service.d/no-file-indexer.conf
+{{- end }}
+
 # Retire the CLI-based cross-harness review skills, replaced by cross-check.
 {{- if has .chezmoi.hostname (list "omarchy" "omarchy-laptop" "dev-1") }}
 .agents/harness-skills

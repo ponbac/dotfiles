@@ -129,9 +129,16 @@ Bring those edits back and review them before using SSH deployment.
   message to that Grok Bot agent's webhook through `~/.local/bin/bot-hook`. Webhook URL and key
   live per bot in `~/.config/bot-hooks/<bot>.env` (not synced); create them with
   `bot-hook --setup <bot>`. Needs `curl` and `jq`.
-- Vicinae file-indexer off switch (Omarchy desktops only): a systemd user drop-in
-  (`~/.config/systemd/user/vicinae.service.d/no-file-indexer.conf`) hides `vicinae-file-indexer`,
-  which otherwise indexed millions of files and wrote ~10 MB/s. Delete the file to re-enable.
+- Vicinae file indexing is disabled on Omarchy desktops with the native
+  `providers.files.preferences.autoIndexing = false` setting in `~/.config/vicinae/settings.json`.
+  The merge preserves each host's themes, extensions and other preferences. Indexing had
+  scanned millions of files and written ~10 MB/s. Chezmoi removes the old
+  `vicinae.service.d/no-file-indexer.conf` workaround: its `InaccessiblePaths=` directive
+  created a user namespace inherited by launched apps, breaking 1Password's browser helper.
+  After the first apply, run `systemctl --user daemon-reload` and
+  `systemctl --user restart vicinae.service`, then fully quit and reopen Helium (an in-browser
+  restart keeps the old namespace). Future applies do not restart running apps automatically.
+  Validate the policy with `python3 -B -m unittest discover -s tools -p 'test_vicinae_policy.py' -v`.
 
 Agent `modify_` sources merge selected keys with current settings. They preserve
 host-local tokens, project trust, desktop-generated Codex plugins/marketplaces,

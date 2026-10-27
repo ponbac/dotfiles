@@ -49,6 +49,7 @@ manifests
 .local/share/vicinae
 .local/bin/bot-hook
 .config/systemd/user/vicinae.service.d
+.config/vicinae
 .config/environment.d/60-t3code-nightly.conf
 .local/bin/t3code-nightly
 .local/bin/t3code-nightly-update
