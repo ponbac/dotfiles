@@ -266,10 +266,14 @@ class UpdaterTests(unittest.TestCase):
         self.cli()
         self.pages = [[release(OLD)]]
         self.downloads.clear()
-        for args in [(), ('--check',), ('--release', OLD)]:
+        # A withdrawn newer nightly leaves an older newest release: keep it, succeed.
+        for args, succeeds, message in [((), True, 'Keeping newer local nightly'),
+                                        (('--check',), True, 'Keeping newer local nightly'),
+                                        (('--release', OLD), False, 'Refusing downgrade')]:
             with self.subTest(args=args):
-                self.assertIn('Refusing downgrade', self.cli(*args, succeeds=False))
+                self.assertIn(message, self.cli(*args, succeeds=succeeds))
                 self.assertEqual((self.root / 'current.AppImage').resolve(), self.image(NEW))
+                self.assertFalse(self.image(OLD).exists())
                 self.assertEqual(self.downloads, [])
 
     def test_status_is_offline_read_only_and_reports_metadata(self):

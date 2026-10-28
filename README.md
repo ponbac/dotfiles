@@ -362,7 +362,9 @@ excluded on `dev-1` and unknown hosts; dev-1 retains its independent CLI updater
   `~/.local/share/t3code-nightly/versions/<version>/`. A lock prevents overlapping
   jobs. Checks/downloads fail closed; existing verified files are never overwritten.
 - `current.AppImage` is an atomic symlink. Updating changes **only the next
-  managed-launcher launch**, never quits/relaunches T3 or its agents, and never downgrades. Previous
+  managed-launcher launch**, never quits/relaunches T3 or its agents, and never downgrades. If upstream
+  withdraws the staged nightly so the newest release is older, plain and `--check`
+  runs keep the staged image and succeed; `--release <older>` still fails. Previous
   images are retained; there is no unattended deletion. Check disk periodically
   (about 160 MB per staged release) and review old images before manual cleanup.
 - `~/.local/bin/t3code-nightly` launches the image and preserves the package's

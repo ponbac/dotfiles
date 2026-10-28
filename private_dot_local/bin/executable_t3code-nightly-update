@@ -211,9 +211,14 @@ def promote(root, image):
 def update(root, arch, args):
     current = current_image(root)
     version, release = discover_release(args.release)
-    asset = release_asset(version, release, arch)
     if current and version_key(version) < version_key(current[0]):
-        raise UpdateError(f'Refusing downgrade from {current[0]} to {version}')
+        if args.release:
+            raise UpdateError(f'Refusing downgrade from {current[0]} to {version}')
+        # Upstream can withdraw a nightly after it was staged here. Keep the staged
+        # image and succeed, so sync and the timer do not fail until a newer one ships.
+        print(f'Keeping newer local nightly {current[0]}; newest published is {version}. No changes.')
+        return
+    asset = release_asset(version, release, arch)
     if args.check:
         state = 'already current' if current and current[0] == version else 'available'
         print(f'Nightly {version} ({arch}) {state}; verified metadata, no download or local changes.')
