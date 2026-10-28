@@ -18,12 +18,28 @@ Requires GitHub CLI v2.99.0 or newer and write access.
 
 ```bash
 gh pr comment <number> --repo <owner/repo> \
-  --body-file /tmp/pr-evidence.md \
+  --body-file ./artifacts/pr-evidence.md \
   --attach ./artifacts/result.png \
   --attach ./artifacts/demo.mp4
 ```
 
-`--attach` supports PNG, GIF, JPEG, SVG, MP4, MOV, and WebM. Validate current provider limits before upload; as a conservative baseline, keep images at or below 10 MiB. Video limits vary by GitHub plan. In a body file, local attachment paths can control placement. Put a video reference in its own paragraph so GitHub can render a player.
+`./artifacts/pr-evidence.md`:
+
+```markdown
+### Review evidence
+
+**Result after the change:**
+
+![Result after the change](./result.png)
+```
+
+`--attach` supports PNG, GIF, JPEG, SVG, MP4, MOV, and WebM. Validate current provider limits before upload; as a conservative baseline, keep images at or below 10 MiB. Video limits vary by GitHub plan.
+
+`gh` rewrites only Markdown references to an attached file, `![alt](path)`, and resolves their paths relative to the body file's directory, then the working directory. A bare path or a plain-text filename is not a reference: it stays in the comment as literal text, and `gh` appends the upload at the end of the comment instead. To place media inline:
+
+- Reference every attached image with `![alt](path)`, using exactly the path passed to `--attach` or one relative to the body file. Keep the body file next to the media so the references can be `./name.png`.
+- Put each reference in its own paragraph. The inline reference form for video is unverified, so leave videos unreferenced and let `gh` append them, in their own paragraph at the end, where GitHub renders a player.
+- After posting, read the comment back (`gh api repos/<owner>/<repo>/issues/comments/<id> --jq .body`). It must contain no local paths, and no image may be appended after the final section. If it does, edit the comment so each uploaded URL replaces its path; do not post a second comment.
 
 Do not call GitHub's undocumented internal upload endpoints. If `gh` is older than v2.99.0, stop and report the required upgrade rather than falling back to browser automation.
 

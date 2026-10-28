@@ -87,7 +87,7 @@ Use this skill to prepare the current work for review: describe the current `jj`
    - A request to run this skill authorizes publishing relevant review-evidence files already identified during the task. Ask first when relevance, ownership, sensitivity, or intended publication is uncertain. For a public GitHub repository, ask before upload unless the user explicitly requested that those files be attached or published.
    - Read [references/pr-media.md](references/pr-media.md) before publishing. Inspect each file for secrets, customer/personal data, private URLs, browser chrome, notifications, and unrelated content; validate type and size; prefer the smallest non-redundant set.
    - Default to one new PR comment. Do not rewrite the PR description or add media to Git.
-   - GitHub: require `gh` v2.99.0 or newer and use `gh pr comment --attach`; never use undocumented upload endpoints.
+   - GitHub: require `gh` v2.99.0 or newer and use `gh pr comment --attach`; never use undocumented upload endpoints. Reference each image in the body as `![alt](./file.png)`, since bare paths stay as literal text and the media is appended at the end, then read the posted comment back to confirm it contains no local paths.
    - Azure DevOps: use `scripts/attach-azdo.py`, which uploads through the PR Attachments REST API, creates one thread, and attempts rollback if thread publication fails. Embed images and link videos.
    - Capture repository status immediately before publication and compare it afterward. Attachment publication must not change repository state; report any difference rather than cleaning it silently.
    - If no media materially improves review, skip this step without asking and mention that no review media was attached.
