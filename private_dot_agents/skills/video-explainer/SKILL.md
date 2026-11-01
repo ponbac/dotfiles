@@ -1,16 +1,16 @@
 ---
-name: explain-change
+name: video-explainer
 description: Turn the current change, a PR, or a commit into a short motion-graphic explanation of what changed and why.
 disable-model-invocation: true
 metadata:
   opencode/autoinvoke: "false"
 ---
 
-# Explain change
+# Video explainer
 
 **Show the mechanism.** Make a polished technical motion explainer, not a launch video or an animated file-by-file diff. You make the story, visuals, render, and supporting explanation with the tools available on the machine.
 
-Invoke explicitly: `/skill:explain-change` in Pi, `$explain-change` in Codex, or `/explain-change` in Claude Code and OpenCode. Optionally append a PR URL, commit, or revision range. Plain-language direction can narrow the focus or ask for a simpler explanation; there is no options interface.
+Invoke explicitly: `/skill:video-explainer` in Pi, `$video-explainer` in Codex, or `/video-explainer` in Claude Code and OpenCode. Optionally append a PR URL, commit, or revision range. Plain-language direction can narrow the focus or ask for a simpler explanation; there is no options interface.
 
 Assume a returning contributor: the viewer knows the project but wants to understand this change. Start at the changed behavior, explain the relevant mechanism, and end at its consequence. Introduce unfamiliar local concepts only as needed.
 
