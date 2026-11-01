@@ -44,6 +44,7 @@ manifests
 .config/systemd/user/t3code-nightly-update.*
 .config/systemd/user/grok-bot-update.*
 .local/bin/grok-bot-update
+.local/bin/desktop-package-migrate
 .local/share/grok-bot-packaging
 .local/share/omarchy-overrides
 .local/share/vicinae

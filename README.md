@@ -280,6 +280,39 @@ Do not install these agents globally with npm or the native Claude installer.
 Other Pi extension packages remain separately pinned. `DEV.md` retains the original
 runtime audit; this targeted agent consolidation supersedes its initial deferral.
 
+## Slack and Telegram package migration (Omarchy desktops only)
+
+Chezmoi installs `desktop-package-migrate` on `omarchy` and `omarchy-laptop`,
+not `dev-1` or unknown hosts. This explicit migration replaces only installed
+legacy variants:
+
+- `slack-desktop-wayland` → `omarchy/slack-desktop`
+- `telegram-desktop-bin` → `extra/telegram-desktop`
+
+```sh
+desktop-package-migrate           # preview, no privilege prompt or changes
+desktop-package-migrate --apply   # quit both apps first; authenticate when prompted
+```
+
+The replacements use one dependency-checked pacman transaction; old apps are
+never removed ahead of installation. Local Slack/Telegram profiles, credentials
+and conversations are neither copied nor removed. Missing apps are not installed.
+Repeat runs are no-ops once legacy variants are gone. There is no timer or
+privileged hook in `chezmoi apply`, `dotsync` or bootstrap. The helper refuses
+running apps and known pending system updates; run the normal full Omarchy
+update first when needed. It does not refresh databases or upgrade unrelated
+packages (required new dependencies are installed). Authentication uses sudo in
+a terminal, or the host's graphical polkit agent otherwise.
+
+Publish with `dotpush`, sync on the laptop, then run the explicit migration on
+each desktop. For a targeted rollout without upgrading coding agents, fetch and
+fast-forward a **clean** laptop source from `origin/master`, apply only
+`~/.local/bin/desktop-package-migrate`, then invoke it there. Never overwrite
+unpublished laptop changes. Package updates afterwards belong to the normal
+system updater, not this helper; RealVNC is unchanged.
+
+Validation: `python3 -B -m unittest discover -s tools -p 'test_desktop_package_migrate.py' -v`.
+
 ## REA: JavaScript and Electron reverse engineering
 
 All three hosts install `npm:rea-agents` **6.4.0** through mise's shared

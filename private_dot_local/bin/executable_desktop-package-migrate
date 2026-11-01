@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Explicit, repeatable migration of retired desktop package variants.
+set -euo pipefail
+case "$(hostname)" in
+  omarchy|omarchy-laptop) ;;
+  *) echo 'Only omarchy and omarchy-laptop are supported.' >&2; exit 1 ;;
+esac
+case "${1:-}" in
+  '') apply=false ;;
+  --apply) apply=true ;;
+  --help) echo 'Usage: desktop-package-migrate [--apply] (default: preview only)'; exit 0 ;;
+  *) echo 'Usage: desktop-package-migrate [--apply]' >&2; exit 1 ;;
+esac
+[[ $# -le 1 ]] || { echo 'Too many arguments.' >&2; exit 1; }
+
+# Query the exact inventory: pacman -Q <name> can match a virtual Provides name.
+installed="$(pacman -Qq)"
+old_packages=()
+new_packages=()
+targets=()
+for pair in 'slack-desktop-wayland omarchy/slack-desktop' 'telegram-desktop-bin extra/telegram-desktop'; do
+  read -r old target <<< "$pair"
+  if grep -Fxq -- "$old" <<< "$installed"; then
+    old_packages+=("$old")
+    new_packages+=("${target#*/}")
+    targets+=("$target")
+    printf '%s -> %s\n' "$old" "$target"
+  fi
+done
+if [[ ${#targets[@]} -eq 0 ]]; then
+  echo 'No legacy Slack or Telegram packages installed; nothing to migrate.'
+  exit 0
+fi
+if ! "$apply"; then
+  echo 'Preview only. Quit Slack and Telegram, then run desktop-package-migrate --apply.'
+  exit 0
+fi
+if pgrep -u "$(id -u)" -x 'slack|Telegram|telegram-desktop|telegram-deskto' >/dev/null; then
+  echo 'Quit Slack and Telegram before replacing their packages.' >&2
+  exit 1
+fi
+# Do not refresh databases or silently perform a full system upgrade here.
+# Refuse a known pending upgrade rather than create a partial-upgrade state.
+# pacman returns 1 when the upgrade query matches no packages.
+if updates="$(pacman -Qu)"; then
+  :
+else
+  status=$?
+  [[ $status -eq 1 && -z "$updates" ]] || exit "$status"
+fi
+if [[ -n "$updates" ]]; then
+  echo 'Pending system updates: run your normal full Omarchy update, then retry.' >&2
+  exit 1
+fi
+
+# Keep both replacements in ONE dependency-checked transaction; never remove
+# the old apps first. libalpm question bit 4 approves conflicting-package
+# removal only. --noconfirm otherwise keeps pacman's normal safe defaults.
+command=(/usr/bin/pacman -S --needed --noconfirm --ask=4 "${targets[@]}")
+if [[ -t 0 && -t 1 ]]; then
+  sudo "${command[@]}"
+else
+  pkexec "${command[@]}"
+fi
+installed="$(pacman -Qq)"
+for old in "${old_packages[@]}"; do
+  if grep -Fxq -- "$old" <<< "$installed"; then
+    echo "Migration incomplete: $old remains installed." >&2
+    exit 1
+  fi
+done
+for new in "${new_packages[@]}"; do
+  grep -Fxq -- "$new" <<< "$installed" || { echo "Missing replacement: $new" >&2; exit 1; }
+  pacman -Q "$new"
+done
+echo 'Migration complete. Local profiles were not changed; reopen the apps normally.'
