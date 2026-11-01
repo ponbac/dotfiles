@@ -1,0 +1,1 @@
+- Executor (`execute` tool) is the route to Slack, Gon, mail, calendar and other connected services. Try it before saying you can't reach someone.

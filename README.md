@@ -92,6 +92,9 @@ Bring those edits back and review them before using SSH deployment.
 
 - Shared skill library and Claude-specific links/variants. Manual invocation
   flags and Codex invocation policies travel with the skills.
+- Global agent instructions: `.chezmoitemplates/agents/global-instructions.md`
+  renders to `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.pi/agent/AGENTS.md`
+  and `~/.config/opencode/AGENTS.md`.
 - Pi extensions, selected settings/model overrides, built-in MCP and pinned packages.
   The retired `pi-mcp-adapter` is not installed. Executor uses native HTTP bearer
   headers with `${EXECUTOR_MCP_TOKEN}` and direct tool exposure; the token stays local.
