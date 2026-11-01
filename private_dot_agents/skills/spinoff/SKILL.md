@@ -23,7 +23,7 @@ A **spinoff** is a new T3 thread with its own worktree, model and **brief**. The
    - **What is known**: measured facts with dates, numbers, file paths, evidence locations, and PR and issue numbers. Separate what was verified from what is suspected.
    - **Scope**: what is in, what is out, and what sibling threads cover.
    - **Constraints**: product decisions that are not to be reopened. Production, deploys and paid APIs are off-limits unless the user allowed them.
-   - **Way of working**: for build and fix work, "Use the `crossbuild` skill, finish: <babysit|push>". Add `gh-stack` when the work is stacked. Spell out any customisation the user asked for.
+   - **Way of working**: for build and fix work, "Use the `full-stop` skill", or "Use `full-stop draft`" when the user should get a draft PR. Use `full-send` only when the user asked for it. Add `gh-stack` when the work is stacked. Spell out any customisation the user asked for.
    - **Report**: what to report when done.
 
    Done when a fresh agent with none of this conversation could start without asking anything. If the user asked for an issue, create it first and reference it in the brief.

@@ -36,6 +36,7 @@ Use this skill to prepare the current work for review: describe the current `jj`
    - Infer a subject from the diff: `type(scope): imperative summary`.
    - Prefer types: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
    - Keep the subject concise (aim for <=72 chars), lower-case the type/scope, and use an imperative summary.
+   - Say what the change means for the reader, with the outcome when you know it: `perf(server): cut websocket frame size by 70%+ with gzipping`, not `perf(server): negotiate permessage-deflate on the websocket`.
    - Add a body only when useful: why, notable implementation details, migration notes, and tests/checks run.
    - JJ mode: apply it with `jj describe -m "$message"` (or `jj describe @ -m "$message"`).
    - Git worktree mode: if there are staged or unstaged changes, stage the intended changes (`git add -A` only when all current changes belong in the commit, including no review-only media) and create a commit with `git commit -m "$subject"` plus additional `-m "$body"` paragraphs as needed. If there are no worktree changes but the branch already has unpushed commits, use the existing commit(s) and do not amend/rewrite history unless the user explicitly asks.
@@ -50,7 +51,6 @@ Use this skill to prepare the current work for review: describe the current `jj`
    - Before pushing, re-check that the selected remote is `origin`. Do not ask merely because `origin` is upstream/canonical; ask before pushing to a remote named `upstream`, a non-`origin` remote, or any remote whose identity is ambiguous.
    - JJ mode: push only the selected bookmark with `jj git push --remote origin --bookmark <bookmark>`. An explicitly selected untracked bookmark is created on the remote and tracked automatically; do not add the unsupported `--allow-new` flag.
    - Git worktree mode: push only the selected branch, normally `git push -u origin <branch>`.
-   - If the push requires force/remote overwrite, stop and ask before using any force option.
 
 6. **Find or create a draft PR.**
    - Determine the target base branch from the provider default branch, not by guessing when a CLI can tell you.
@@ -106,13 +106,13 @@ Write for a reviewer who understands the product but has not followed the task. 
 2. **How.** Give a brief, plain-language (ELI5-style) explanation of the solution, usually 2–4 sentences. Describe the overall mechanism and why it solves the problem, at a higher level than individual code changes. Avoid a file-by-file recap, jargon, or a second summary of the diff.
 3. **Diagram — when useful.** Prefer a small Mermaid flowchart or sequence diagram when decisions, state transitions, or interactions are clearer visually. Give it a descriptive heading, such as "Decision flow". Show the relevant behavior after this PR, including important alternative paths; keep labels understandable and consistent with the implementation. Omit it for trivial changes or when it would merely repeat the prose. Use a simple text diagram if the provider does not render Mermaid.
 4. **Changes — only when useful.** Add concise implementation details, noteworthy trade-offs, compatibility/migration notes, or limitations that help review. Focus on consequential details rather than listing every changed file. Omit this section if What and why / How already explain enough.
-5. **Checks.** State which checks actually ran and their results, including relevant failures, warnings, and skipped checks with reasons. Distinguish automated checks from manual/in-app verification; do not imply unperformed verification. Describe important test scenarios here, or in a separate **Tests** section when that materially helps review.
+5. **Checks.** State which checks actually ran and their results, including relevant failures, warnings, and skipped checks with reasons. Distinguish automated checks from manual/in-app verification; do not imply unperformed verification. Describe important test scenarios here, or in a separate **Tests** section when that materially helps review. When `review-loop` ran, include its verdict line unchanged.
 
-Add other sections (for example, cross-check findings or follow-up work) only when relevant and supported by the task. Do not copy all sections from a larger example PR by default. Avoid empty headings, filler, and repeated explanations. Review media belongs in a separate comment as described in step 7.
+Add other sections (for example, review findings or follow-up work) only when relevant and supported by the task. Do not copy all sections from a larger example PR by default. Avoid empty headings, filler, and repeated explanations. Review media belongs in a separate comment as described in step 7.
 
 ## Guardrails
 
-- Never force-push, move an existing bookmark on another change, rename/switch away from a Git worktree branch, push to a non-`origin` or `upstream` remote, create a PR from a local fork without confirming the target repository, or create a non-draft PR without explicit user approval.
+- Never move an existing bookmark on another change, rename/switch away from a Git worktree branch, push to a non-`origin` or `upstream` remote, create a PR from a local fork without confirming the target repository, or create a non-draft PR without explicit user approval.
 - Do not create duplicate PRs for the same source bookmark/branch.
 - If the diff is ambiguous, security-sensitive, or contains generated/vendor-only noise, ask before choosing the description/bookmark/branch.
 - If the required CLI (`gh` or `az`) is missing or unauthenticated, stop with the exact command/output and ask the user to authenticate or choose another path.
