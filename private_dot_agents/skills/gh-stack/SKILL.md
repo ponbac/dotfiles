@@ -145,6 +145,8 @@ gh pr list --state open \
 
 The bottom PR must target the trunk; each higher PR must target the preceding branch. Report the PR URLs in bottom-to-top order and their draft/ready state.
 
+`--auto` doesn't write a proper description. After publishing, set each PR's description with `gh pr edit`, following the PR description guidance in `commit-and-push`.
+
 Complete this step only when every requested branch has one PR, every PR base matches the dependency ladder, and GitHub reports the PRs as one Stack.
 
 ## 5. Maintain or merge

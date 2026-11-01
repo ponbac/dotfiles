@@ -21,6 +21,7 @@ Use this skill to prepare the current work for review: describe the current `jj`
    - Git worktree mode inspection: run `git status --short --branch`, inspect `git diff --stat` / `git diff` and `git diff --cached --stat` / `git diff --cached`, and check recent context with `git log --oneline --decorate -n 5`.
    - Identify screenshots/videos intended only as PR review evidence during inspection. They are not source changes: exclude them from the commit and preserve their paths for step 7. In JJ mode, remember that unignored files may already be tracked; place review-only media outside the working copy before describing/pushing, without adding ignore-file noise solely for this workflow.
    - Stop if the repo has conflicts, no meaningful change, or multiple unrelated changes that should be split. Ask the user before proceeding in those cases.
+   - On GitHub, publish with `gh-stack` instead of steps 4–6 when this branch sits on another open PR's branch, or when the work splits into layers where a later layer needs an earlier one merged first. Each layer must be reviewable on its own. Don't split one change just to make a stack. Steps 3 and 7 and the PR description guidance still apply to each PR.
 
 2. **Determine the remote provider.**
    - Get `origin` from `jj git remote list` or `git remote get-url origin`.
