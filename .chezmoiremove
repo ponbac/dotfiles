@@ -34,3 +34,21 @@
 .claude/skills/crossbuild
 .claude/skills/cross-check
 {{- end }}
+
+# Retire the seven skills selected in the November 2026 usage audit.
+{{- if has .chezmoi.hostname (list "omarchy" "omarchy-laptop" "dev-1") }}
+.agents/skills/web-design-guidelines
+.agents/skills/tech-spec
+.agents/skills/improve-codebase-architecture
+.agents/skills/herdr-subagents
+.agents/skills/codebase-design
+.agents/skills/playwriter
+.agents/skills/jj-merge-conflict
+.claude/skills/web-design-guidelines
+.claude/skills/tech-spec
+.claude/skills/improve-codebase-architecture
+.claude/skills/herdr-subagents
+.claude/skills/codebase-design
+.claude/skills/playwriter
+.claude/skills/jj-merge-conflict
+{{- end }}

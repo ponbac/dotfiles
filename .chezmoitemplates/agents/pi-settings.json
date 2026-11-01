@@ -24,22 +24,17 @@
   "skillful": {
     "hiddenSkills": [
       "bro",
-      "codebase-design",
       "frontend-design",
       "grilling",
       "handoff",
-      "improve-codebase-architecture",
       "plannotator-annotate",
       "plannotator-last",
       "plannotator-review",
       "plannotator-visual-explainer",
-      "playwriter",
       "teach",
-      "tech-spec",
       "thermo-nuclear-code-quality-review",
       "vercel-composition-patterns",
       "vercel-react-best-practices",
-      "web-design-guidelines",
       "writing-great-skills"
     ]
   }
