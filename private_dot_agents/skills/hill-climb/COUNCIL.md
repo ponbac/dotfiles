@@ -39,7 +39,7 @@ Send this every round with only the paths filled in, and nothing else:
 
 > You are reviewing the visual design of a desktop app's UI. The images are in `<packet path>`; look only there.
 > For each shot pair, say which of A or B is better designed and why, in one line.
-> Then score every image 1–10 on each category below, with a one-line reason per score: hierarchy, typography, colour & contrast, spacing & alignment, iconography, consistency, character (does it have colour and a personality of its own, rather than generic grey).
+> Then score every image 1–10 on each category below, with a one-line reason per score: typography, hierarchy, spacing & density, colour & contrast, iconography, consistency & polish, clarity, character (does it have colour and a personality of its own, rather than generic grey), and overall.
 > Finish with the three changes that would most improve the weaker image of each pair.
 > This is read-only: change no files.
 
