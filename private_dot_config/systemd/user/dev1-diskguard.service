@@ -1,0 +1,9 @@
+[Unit]
+Description=dev-1 disk guard (dev1-cleanup below 40 GiB free, emergency steps below 20 GiB)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/dev1-cleanup --guard
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=2h

@@ -1,0 +1,10 @@
+[Unit]
+Description=dev-1 disk cleanup (caches, /tmp build output, finished T3 worktrees)
+
+[Service]
+Type=oneshot
+# Approved by Pontus 2026-10-27: apply safe caches + extras; settled T3 threads count as done.
+ExecStart=%h/.local/bin/dev1-cleanup --apply --count-settled
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=2h

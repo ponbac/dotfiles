@@ -63,6 +63,12 @@ manifests
 .pi/agent/extensions/omarchy-system-theme.ts
 {{- end }}
 
+{{- if ne .chezmoi.hostname "dev-1" }}
+.local/bin/dev1-cleanup
+.config/systemd/user/dev1-cleanup.*
+.config/systemd/user/dev1-diskguard.*
+{{- end }}
+
 {{- if eq .chezmoi.hostname "omarchy" }}
 .config/omarchy/plugins/ponbac.toki
 .config/omarchy/plugins/ponbac.idle

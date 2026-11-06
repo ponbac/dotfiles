@@ -589,6 +589,28 @@ app version, the Hyprland app class and tray registration, without exporting bot
 names, conversations or tokens. The existing `v1.0.1-ponbac.4` plugin remains
 pinned unless runtime evidence requires a fix.
 
+## dev-1 disk cleanup (dev-1 only)
+
+`~/.local/bin/dev1-cleanup` keeps dev-1's disk from filling up. It clears regenerable caches,
+removes finished T3 worktrees, strips build output from idle worktrees, deletes idle
+build-output-only directories, review copies (3 days idle, never git checkouts) and old Claude
+session directories in `/tmp`, and caps the Docker
+build cache at 5 GB. A worktree goes once its threads are settled/archived, or once every thread
+has been idle 7 days whatever its state, provided the tree is clean and HEAD is on origin or in a
+merged PR. Idle worktrees holding unpushed or uncommitted work are listed under "Needs your
+attention" in the report, never removed. Each removal is checked against T3 threads and runs,
+open processes and git state, and checked again right before it happens. `--dry-run` is the default; `--help` describes
+the rules.
+
+- `dev1-cleanup.timer` runs `--apply --count-settled` nightly at 04:30 (`Persistent=true`).
+- `dev1-diskguard.timer` checks hourly. Below 40 GiB free it runs the cleanup early (at most
+  every 6 h); below 20 GiB it adds the bounded `--emergency` steps (stop at 50 GiB free).
+- Report: `~/.local/state/dev1-cleanup/last-report.md`, log `cleanup.log` next to it. "Freed"
+  is the measured change in free space.
+
+Validation: `python3 -B -m unittest discover -s tools -p 'test_dev1_cleanup.py' -v`, then
+`dev1-cleanup --dry-run --count-settled` on dev-1 and read the report.
+
 ## Ayaka and wallpapers
 
 Ayaka revision is recorded in `.chezmoitemplates/desktop/theme-lock.json`.

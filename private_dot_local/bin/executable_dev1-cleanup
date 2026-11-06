@@ -1,0 +1,776 @@
+#!/usr/bin/env bash
+# dev1-cleanup: disk cleanup for dev-1.
+#
+#   dev1-cleanup [--dry-run | --apply] [--count-settled] [--no-fetch] [--emergency]
+#   dev1-cleanup --guard
+#
+#   --dry-run        (default) report what would be removed, change nothing
+#                    except `git fetch --prune origin` in repos that own T3 worktrees
+#   --apply          actually remove
+#   --count-settled  treat a *settled* T3 thread like an archived one (the timers pass it;
+#                    Pontus settles threads instead of archiving them)
+#   --no-fetch       skip `git fetch`, use the remote-tracking refs as they are
+#   --emergency      after the normal pass, run the bounded emergency steps (section 9) one by one
+#                    until EMERGENCY_TARGET_GIB is free; it never relaxes the worktree removal rules
+#   --guard          hourly check (dev1-diskguard.timer): below GUARD_RUN_GIB free run
+#                    `--apply --count-settled`, below GUARD_EMERGENCY_GIB add `--emergency`
+#
+# A T3 worktree is removed only when all its threads are archived/deleted (or settled, with
+# --count-settled, or idle for OPEN_IDLE_DAYS whatever their state; Pontus 2026-11-06),
+# no T3 run or process uses it, the tree is clean, and HEAD is merged into
+# origin/main|master, contained in an origin branch, or is the head of a PR merged on GitHub
+# (that last case also needs 24h without real thread activity: runs and messages, not projection
+# rewrites). Every check is repeated right before removal. Idle worktrees that cannot go because
+# of uncommitted or unpushed work are listed under "Needs your attention". Worktrees that stay get their
+# git-ignored build output (.NET bin/obj/.artifacts, Rust target/) stripped after 3 idle days.
+# /tmp: idle build-output-only directories (1 day), review copies (3 days) and Claude session dirs
+# (7 days) are removed.
+#
+# Each section runs isolated: a failing section is logged and reported, later sections still run,
+# and the run exits 1. "Freed" is the measured change in free space; du sizes are apparent sizes
+# (hardlinked caches such as bun's free less than their du size).
+#
+# Report: ~/.local/state/dev1-cleanup/last-report.md (copies in reports/)
+# Log:    ~/.local/state/dev1-cleanup/cleanup.log
+# Source: chezmoi, private_dot_local/bin/executable_dev1-cleanup (tests: tools/test_dev1_cleanup.py)
+set -euo pipefail
+shopt -s nullglob
+
+MODE=dry-run
+COUNT_SETTLED=0
+FETCH=1
+EMERGENCY=0
+GUARD=0
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) MODE=dry-run ;;
+    --apply) MODE=apply ;;
+    --count-settled) COUNT_SETTLED=1 ;;
+    --no-fetch) FETCH=0 ;;
+    --emergency) EMERGENCY=1 ;;
+    --guard) GUARD=1 ;;
+    -h|--help) sed -n '2,31p' "$0"; exit 0 ;;
+    *) echo "unknown argument: $arg" >&2; exit 2 ;;
+  esac
+done
+
+export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+STATE_DIR="$HOME/.local/state/dev1-cleanup"
+REPORT="$STATE_DIR/last-report.md"
+LOG="$STATE_DIR/cleanup.log"
+T3_DB="${T3CODE_HOME:-$HOME/.t3}/userdata/statev2.sqlite"
+T3_WORKTREES="${T3CODE_HOME:-$HOME/.t3}/worktrees"
+T3_PROJECTS="${T3CODE_HOME:-$HOME/.t3}/projects"
+DEV_DIR="$HOME/dev"
+TMP_ROOT="${DEV1_CLEANUP_TMP_ROOT:-/tmp}"
+CLAUDE_TMP="$TMP_ROOT/claude-$(id -u)"
+
+GUARD_RUN_GIB=40          # guard: run the normal cleanup below this
+GUARD_EMERGENCY_GIB=20    # guard: add --emergency below this
+GUARD_WARN_GIB=10         # guard: log a warning below this (alerts not wired yet)
+GUARD_MIN_INTERVAL_H=6    # guard: at most one normal (non-emergency) run per this many hours
+EMERGENCY_TARGET_GIB=50   # --emergency stops once this much is free
+TMP_BUILD_DAYS=1          # /tmp build-output-only dirs idle this long are removed
+CLAUDE_TMP_DAYS=7         # Claude session tmp dirs idle this long are removed
+REVIEW_TMP_DAYS=3         # /tmp/*review* copies idle this long are removed (Pontus 2026-11-06)
+IDLE_DAYS=3               # worktree build output is stripped after this many idle days
+OPEN_IDLE_DAYS=7          # worktrees whose threads are all this idle count as done, settled or not
+DOCKER_BUILD_CACHE_MAX=5GB
+
+mkdir -p "$STATE_DIR/reports"
+log() { printf '%s [%s] %s\n' "$(date -Is)" "$MODE" "$*" >>"$LOG"; }
+avail_kb() { df -k --output=avail / | awk 'NR==2 {print $1+0}'; }
+gib() { echo $(( $1 / 1048576 )); }
+
+# ------------------------------------------------------------------- guard mode
+if [ "$GUARD" = 1 ]; then
+  MODE=guard
+  free=$(gib "$(avail_kb)")
+  [ "$free" -lt "$GUARD_RUN_GIB" ] || exit 0
+  if ! flock -n "$STATE_DIR/lock" true; then log "guard: ${free}GiB free, a cleanup is already running"; exit 0; fi
+  [ "$free" -ge "$GUARD_WARN_GIB" ] || { log "guard: WARNING only ${free}GiB free"; echo "WARNING: only ${free}GiB free on /" >&2; }
+  args=(--apply --count-settled)
+  if [ "$free" -lt "$GUARD_EMERGENCY_GIB" ]; then
+    args+=(--emergency)
+  else
+    last=$(stat -c %Y "$STATE_DIR/last-apply" 2>/dev/null || echo 0)
+    if [ $(( $(date +%s) - last )) -lt $(( GUARD_MIN_INTERVAL_H * 3600 )) ]; then
+      log "guard: ${free}GiB free, last apply run under ${GUARD_MIN_INTERVAL_H}h ago; waiting"; exit 0
+    fi
+  fi
+  log "guard: ${free}GiB free, running ${args[*]}"
+  exec "$0" "${args[@]}"
+fi
+
+exec 9>"$STATE_DIR/lock"
+flock -n 9 || { echo "another dev1-cleanup run is active" >&2; exit 1; }
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+REMOVED="$TMP/removed.md"; SKIPPED="$TMP/skipped.md"; NOTES="$TMP/notes.md"; FAILED="$TMP/failed"
+: >"$REMOVED"; : >"$SKIPPED"; : >"$NOTES"; : >"$FAILED"; : >"$TMP/attention.md"; : >"$TMP/removed-kb"; : >"$TMP/removed-wt"; : >"$TMP/section-df"
+
+kb_of() { { du -sk "$@" 2>/dev/null || true; } | awk '{s+=$1} END {print s+0}'; }
+human() { numfmt --to=iec --suffix=B --format='%.1f' $(( $1 * 1024 )); }
+disk_line() { df -h --output=size,used,avail,pcent / | tail -1 | awk '{printf "%s used of %s (%s), %s free", $2, $1, $4, $3}'; }
+md_cell() { printf '%s' "$1" | tr '\n|' ' /'; }
+first_line() { awk 'NR==1 {print; exit}'; }   # unlike head, never leaves a writer with EPIPE
+
+# All paths in use (cwd, exe, open fds, mapped files) by any process we can see, as "pid<TAB>path".
+# One find + one grep over /proc (well under a second), so it is cheap to repeat before each removal.
+scan_open_paths() { # out-file
+  { find /proc/[0-9]*/cwd /proc/[0-9]*/exe /proc/[0-9]*/fd -maxdepth 1 -type l -printf '%p\t%l\n' 2>/dev/null || true
+    grep -s -H -o ' /[^ ].*$' /proc/[0-9]*/maps || true
+  } | sed -E 's#^/proc/([0-9]+)/[^\t:]*(\t|: )#\1\t#' | awk -F'\t' -v self="$$" '$1 != self' | sort -u >"$1"
+}
+# Prints "pid:comm ..." of processes in snapshot $1 using anything under $2.
+users_in() {
+  awk -F'\t' -v d="${2%/}" 'index($2, d)==1 && (length($2)==length(d) || substr($2, length(d)+1, 1)=="/") {print $1}' "$1" \
+    | sort -un | while IFS= read -r pid; do printf '%s:%s\n' "$pid" "$(cat "/proc/$pid/comm" 2>/dev/null || echo '?')"; done \
+    | paste -sd ' ' -
+}
+users_of() { users_in "$TMP/open-paths" "$1"; }              # from the snapshot taken at start
+users_now() { scan_open_paths "$TMP/open-now"; users_in "$TMP/open-now" "$1"; }   # fresh, right before removal
+
+add_removed() { # kind, item, kb, detail
+  printf '%s\n' "$3" >>"$TMP/removed-kb"
+  printf '| %s | `%s` | %s | %s |\n' "$1" "$(md_cell "$2")" "$(human "$3")" "$(md_cell "$4")" >>"$REMOVED"
+}
+add_skipped() { # kind, item, kb, reason
+  printf '| %s | `%s` | %s | %s |\n' "$1" "$(md_cell "$2")" "$(human "$3")" "$(md_cell "$4")" >>"$SKIPPED"
+}
+
+# Runs one section in a subshell with errexit, so an unexpected failure ends only that section.
+run_section() { # name, function, args...
+  local name=$1 rc before after; shift
+  before=$(avail_kb)
+  set +e
+  ( set -eE; trap 'log "section $name: line $LINENO failed: $BASH_COMMAND"' ERR; "$@" )
+  rc=$?
+  set -e
+  after=$(avail_kb)
+  printf '%s\t%s\n' "$name" "$(( after - before ))" >>"$TMP/section-df"
+  if [ "$rc" -ne 0 ]; then printf '%s (exit %s)\n' "$name" "$rc" >>"$FAILED"; log "section $name failed (exit $rc)"; fi
+  return 0
+}
+target_reached() { [ "$(gib "$(avail_kb)")" -ge "$EMERGENCY_TARGET_GIB" ]; }
+
+DISK_BEFORE=$(disk_line)
+AVAIL_BEFORE=$(avail_kb)
+log "start (count_settled=$COUNT_SETTLED fetch=$FETCH emergency=$EMERGENCY) disk: $DISK_BEFORE"
+scan_open_paths "$TMP/open-paths"
+
+# ---------------------------------------------------------------- 1. caches
+# Regenerable package/build caches only. Each entry: label|path.
+CACHES=(
+  "NuGet http-cache|$HOME/.local/share/NuGet/http-cache"
+  "NuGet temp|$TMP_ROOT/NuGetScratch$USER"
+  "bun install cache|$HOME/.bun/install/cache"
+  "npm cache|$HOME/.npm/_cacache"
+  "npx cache|$HOME/.npm/_npx"
+  "pnpm metadata cache|$HOME/.cache/pnpm"
+  "cargo registry .crate cache|$HOME/.cargo/registry/cache"
+  "cargo registry extracted src|$HOME/.cargo/registry/src"
+  "cargo git checkouts|$HOME/.cargo/git/checkouts"
+  "mise download cache|$HOME/.cache/mise"
+  "uv cache|$HOME/.cache/uv"
+  "pip cache|$HOME/.cache/pip"
+  "tsdown cache|$HOME/.cache/tsdown"
+  "node-gyp headers cache|$HOME/.cache/node-gyp"
+  "cursor compile cache|$HOME/.cache/cursor-compile-cache"
+)
+section_caches() {
+  local entry label path kb users left
+  for entry in "${CACHES[@]}"; do
+    label=${entry%%|*}; path=${entry#*|}
+    [ -e "$path" ] || continue
+    kb=$(kb_of "$path")
+    users=$(users_of "$path")
+    if [ -n "$users" ]; then
+      add_skipped cache "$path" "$kb" "in use by $users"; log "skip cache $path: in use by $users"; continue
+    fi
+    if [ "$MODE" = apply ]; then
+      # Empty the directory but keep it, so tools that expect it still find it.
+      find "$path" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>>"$LOG" || true
+      left=$(kb_of "$path"); kb=$(( kb - left ))
+      log "cleared cache $path ($(human "$kb"))"
+    else
+      log "would clear cache $path ($(human "$kb"))"
+    fi
+    add_removed cache "$path" "$kb" "$label"
+  done
+  return 0
+}
+
+# ------------------------------------- 2. git worktree prune (~/dev and T3 project repos)
+section_git_prune() {
+  local repo pr line
+  for repo in "$DEV_DIR"/*/ "$T3_PROJECTS"/*/; do
+    repo=${repo%/}
+    [ -e "$repo/.git" ] || continue
+    pr=$(git -C "$repo" worktree prune --dry-run -v 2>&1 || true)
+    [ -n "$pr" ] || continue
+    if [ "$MODE" = apply ]; then git -C "$repo" worktree prune -v >>"$LOG" 2>&1 || true; fi
+    while IFS= read -r line; do
+      add_removed git-prune "$(basename "$repo")" 0 "$line"; log "worktree prune $repo: $line"
+    done <<<"$pr"
+  done
+  return 0
+}
+
+# ---------------------------------------- 3. approved extras (Pontus, 2026-10-27)
+# a) mise: uninstall tool versions no tracked config needs (what `mise prune` would drop),
+#    one by one so a version a running process still uses is skipped.
+section_mise() {
+  local tv tool ver dir kb users
+  { mise prune --dry-run 2>&1 || true; } | sed -n 's/^mise \([^ ]*\) is prunable:.*/\1/p' >"$TMP/mise-prunable"
+  while IFS= read -r tv; do
+    tool=${tv%@*}; ver=${tv##*@}
+    dir="$HOME/.local/share/mise/installs/$(printf '%s' "$tool" | sed 's|[:/@]|-|g; s|^npm--|npm-|')/$ver"
+    [ -d "$dir" ] || dir=$(mise where "$tv" 2>/dev/null || echo "")
+    kb=0; users=""
+    if [ -n "$dir" ]; then kb=$(kb_of "$dir"); users=$(users_of "$dir"); fi
+    if [ -n "$users" ]; then add_skipped mise "$tv" "$kb" "in use by $users"; log "skip mise $tv: in use by $users"; continue; fi
+    if [ "$MODE" = apply ]; then
+      if ! mise uninstall "$tv" >>"$LOG" 2>&1; then add_skipped mise "$tv" "$kb" "mise uninstall failed (see log)"; continue; fi
+      log "uninstalled $tv ($(human "$kb"))"
+    else
+      log "would uninstall $tv ($(human "$kb"))"
+    fi
+    add_removed mise "$tv" "$kb" "old version, not required by any tracked mise config"
+  done <"$TMP/mise-prunable"
+  return 0
+}
+
+# b) pnpm store prune (drops packages no project references), per store layout version, using a
+#    pnpm of the matching major (v11 store -> pnpm 11 via corepack; v3 store -> the default pnpm 9).
+#    How much it frees is only known after the run.
+section_pnpm() {
+  local store sv pv before users freed
+  local -a pnpm_cmd
+  export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 COREPACK_ENABLE_STRICT=0
+  for store in "$HOME/.local/share/pnpm/store"/v*/; do
+    store=${store%/}; sv=${store##*/v}
+    if [ "$sv" -ge 10 ]; then
+      pv=$(find "$HOME/.cache/node/corepack/v1/pnpm" -mindepth 1 -maxdepth 1 -name "$sv.*" -printf '%f\n' 2>/dev/null | sort -V | tail -1 || true)
+      [ -n "$pv" ] || { add_skipped pnpm-store "$store" "$(kb_of "$store")" "no pnpm $sv available"; continue; }
+      pnpm_cmd=(corepack "pnpm@$pv")
+    else
+      pnpm_cmd=(pnpm)
+    fi
+    if [ "$(cd "$HOME" && "${pnpm_cmd[@]}" store path 2>/dev/null || true)" != "$store" ]; then
+      add_skipped pnpm-store "$store" "$(kb_of "$store")" "${pnpm_cmd[*]} does not own this store"; continue
+    fi
+    before=$(kb_of "$store")
+    users=$(users_of "$store")
+    if [ -n "$users" ]; then
+      add_skipped pnpm-store "$store" "$before" "in use by $users"
+    elif [ "$MODE" = apply ]; then
+      (cd "$HOME" && "${pnpm_cmd[@]}" store prune) >>"$LOG" 2>&1 || log "pnpm store prune failed for $store"
+      freed=$(( before - $(kb_of "$store") ))
+      log "pnpm store prune $store freed $(human "$freed")"
+      add_removed pnpm-store "$store" "$freed" "${pnpm_cmd[*]} store prune (store was $(human "$before"))"
+    else
+      add_removed pnpm-store "$store" 0 "${pnpm_cmd[*]} store prune; size freed unknown until run (store is $(human "$before"))"
+    fi
+  done
+  return 0
+}
+
+# c) old install/deploy backups: keep the newest $KEEP_BACKUPS timestamped entries.
+KEEP_BACKUPS=3
+section_backups() {
+  local bdir b kb users
+  for bdir in "$HOME/.local/state/plannotator-install-backups" "$HOME/.local/state/chezmoi-deploy-backups"; do
+    [ -d "$bdir" ] || continue
+    find "$bdir" -mindepth 1 -maxdepth 1 -regextype posix-extended -regex '.*/[0-9]{8}[-T][0-9]{6}[^/]*' -printf '%f\n' \
+      | sort -r | tail -n +$(( KEEP_BACKUPS + 1 )) | while IFS= read -r b; do printf '%s\n' "$bdir/$b"; done
+  done >"$TMP/old-backups"
+  while IFS= read -r b; do
+    kb=$(kb_of "$b")
+    users=$(users_of "$b")
+    if [ -n "$users" ]; then add_skipped backup "${b#"$HOME/"}" "$kb" "in use by $users"; continue; fi
+    if [ "$MODE" = apply ]; then rm -rf -- "$b"; log "removed backup $b ($(human "$kb"))"; else log "would remove backup $b ($(human "$kb"))"; fi
+    add_removed backup "${b#"$HOME/"}" "$kb" "older than the newest $KEEP_BACKUPS backups"
+  done <"$TMP/old-backups"
+  return 0
+}
+
+# d) T3 build trees in ~/.cache/t3code-builds older than 14 days.
+section_t3_builds() {
+  local b kb built users
+  for b in "$HOME/.cache/t3code-builds"/*/; do
+    b=${b%/}
+    [ -n "$(find "$b" -maxdepth 0 -mtime +14)" ] || continue
+    kb=$(kb_of "$b"); built=$(date -r "$b" +%F)
+    users=$(users_of "$b")
+    if [ -n "$users" ]; then add_skipped t3-build "${b#"$HOME/"}" "$kb" "in use by $users"; continue; fi
+    if [ "$MODE" = apply ]; then rm -rf -- "$b"; log "removed t3 build $b ($(human "$kb"))"; else log "would remove t3 build $b ($(human "$kb"))"; fi
+    add_removed t3-build "${b#"$HOME/"}" "$kb" "T3 build tree, last modified $built"
+  done
+  return 0
+}
+
+# e) T3 database from before 0.1.0 (state.sqlite). Removed the way `t3 doctor` does it (file, -wal, -shm),
+#    only when nothing has it open and every v1 thread was imported into statev2 without error.
+section_t3_legacy_db() {
+  local legacy kb pending users
+  legacy="$(dirname "$T3_DB")/state.sqlite"
+  [ -f "$legacy" ] || return 0
+  kb=$(kb_of "$legacy" "$legacy-wal" "$legacy-shm")
+  pending=$(sqlite3 -readonly "$T3_DB" "SELECT count(*) FROM orchestration_v2_legacy_imports
+                                        WHERE transcript_imported_at IS NULL OR last_error IS NOT NULL" 2>/dev/null || echo err)
+  users=$(users_now "$legacy")
+  if [ -n "$users" ]; then
+    add_skipped t3-legacy-db "${legacy#"$HOME/"}" "$kb" "in use by $users"
+  elif [ "$pending" != 0 ]; then
+    add_skipped t3-legacy-db "${legacy#"$HOME/"}" "$kb" "statev2 legacy import not complete ($pending pending/failed)"
+  else
+    if [ "$MODE" = apply ]; then
+      rm -f -- "$legacy" "$legacy-wal" "$legacy-shm"; log "removed legacy T3 db $legacy ($(human "$kb"))"
+    else
+      log "would remove legacy T3 db $legacy ($(human "$kb"))"
+    fi
+    add_removed t3-legacy-db "${legacy#"$HOME/"}" "$kb" "pre-0.1.0 T3 database; all v1 threads already in statev2"
+  fi
+  return 0
+}
+
+# ------------------------------------------------------------ 4. T3 worktrees
+sql() { sqlite3 -readonly -separator $'\t' "$T3_DB" "$1"; }
+
+# Every thread (v2 projection, plus the v1 projection for older imports) that points at a worktree.
+# Columns: path, thread_id, title, archived, deleted, settled, last real activity (ISO, UTC).
+# Real activity = thread creation, run requests/completions, message updates, unsettling, and work
+# events (turns, nodes, runs, messages, checkpoints, plans, subagents); not visits, PR syncs, session
+# attach/detach or metadata. Not the
+# projection's updated_at: T3 rewrites that for many threads whenever the server restarts (nightly update).
+WORK_EVENTS="'thread.created','thread.unsettled','run.created','run.updated','run-attempt.created','run-attempt.updated',
+  'node.updated','turn-item.updated','provider-turn.updated','message.updated','checkpoint.captured','plan.updated',
+  'subagent.updated','context-transfer.created','runtime-request.updated'"
+query_threads() { # out-file
+  sql "
+    SELECT json_extract(t.payload_json,'\$.worktreePath'), t.thread_id, t.title,
+           t.archived_at IS NOT NULL OR json_extract(t.payload_json,'\$.archivedAt') IS NOT NULL,
+           t.deleted_at IS NOT NULL OR json_extract(t.payload_json,'\$.deletedAt') IS NOT NULL,
+           json_extract(t.payload_json,'\$.settledAt') IS NOT NULL
+             AND json_extract(t.payload_json,'\$.unsettledAt') IS NULL,
+           max(coalesce(t.created_at, ''),
+               coalesce(json_extract(t.payload_json,'\$.unsettledAt'), ''),
+               coalesce((SELECT max(max(r.requested_at, coalesce(r.completed_at, '')))
+                         FROM orchestration_v2_projection_runs r WHERE r.thread_id = t.thread_id), ''),
+               coalesce((SELECT max(m.updated_at) FROM orchestration_v2_projection_messages m
+                         WHERE m.thread_id = t.thread_id), ''),
+               coalesce((SELECT max(e.occurred_at) FROM orchestration_events e
+                         WHERE e.aggregate_kind = 'thread' AND e.stream_id = t.thread_id
+                           AND e.event_type IN ($WORK_EVENTS)), ''))
+    FROM orchestration_v2_projection_threads t
+    WHERE json_extract(t.payload_json,'\$.worktreePath') LIKE '$T3_WORKTREES/%'
+    UNION
+    SELECT worktree_path, thread_id, title, archived_at IS NOT NULL, deleted_at IS NOT NULL, settled_at IS NOT NULL,
+           updated_at
+    FROM projection_threads
+    WHERE worktree_path LIKE '$T3_WORKTREES/%'
+      AND thread_id NOT IN (SELECT thread_id FROM orchestration_v2_projection_threads)
+  " >"$1"
+}
+query_active_threads() { # out-file
+  sql "SELECT DISTINCT thread_id FROM orchestration_v2_projection_runs
+       WHERE status IN ('queued','preparing','starting','running','waiting')" >"$1"
+}
+# Thread-state checks for one worktree; prints a skip reason, or nothing when it may go.
+# $1 worktree, $2 threads file, $3 active-thread file. Lines of $2 for $1 are left in $TMP/wt-threads.
+newest_activity() { cut -f7 "$TMP/wt-threads" | sort | tail -1; }
+threads_idle() { local newest; newest=$(newest_activity); [ -n "$newest" ] && ! [[ "$newest" > "$CUTOFF_OPEN_IDLE" ]]; }
+thread_block_reason() {
+  local wt=$1 n live nl nsettled first
+  awk -F'\t' -v p="$wt" '$1==p' "$2" >"$TMP/wt-threads"
+  n=$(wc -l <"$TMP/wt-threads")
+  if [ "$n" -eq 0 ]; then echo "no T3 thread references it, so its thread state cannot be verified"; return; fi
+  live=$(awk -F'\t' -v s="$COUNT_SETTLED" '!($4==1 || $5==1 || (s==1 && $6==1))' "$TMP/wt-threads")
+  if [ -n "$live" ] && ! threads_idle; then
+    nl=$(printf '%s\n' "$live" | wc -l)
+    nsettled=$(printf '%s\n' "$live" | awk -F'\t' '$6==1' | wc -l)
+    first=$(printf '%s\n' "$live" | awk -F'\t' 'NR==1 {print $3; exit}')
+    echo "thread not archived/deleted: $nl of $n thread(s) still open ($nsettled of those settled), e.g. \"$first\"; last activity $(newest_activity) (open threads count once all are idle ${OPEN_IDLE_DAYS}d)"
+    return
+  fi
+  # awk reads both files fully (no early-exit reader in a pipeline, so no EPIPE under pipefail).
+  if awk -F'\t' 'NR==FNR {active[$1]=1; next} ($2 in active) {found=1} END {exit !found}' "$3" "$TMP/wt-threads"; then
+    echo "a T3 run for one of its threads is active"
+  fi
+}
+
+CUTOFF_24H=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%S.000Z)
+CUTOFF_OPEN_IDLE=$(date -u -d "$OPEN_IDLE_DAYS days ago" +%Y-%m-%dT%H:%M:%S.000Z)
+section_worktrees() {
+  local wt name kb reason users common main dirty mod unt branch default b why head url slug pr out ahead last detail idle nopen
+  declare -A fetched=()
+  query_threads "$TMP/threads.tsv"
+  query_active_threads "$TMP/active-threads"
+  for wt in "$T3_WORKTREES"/*/*/; do
+    wt=${wt%/}
+    name=${wt#"$T3_WORKTREES/"}
+    kb=$(kb_of "$wt")
+    idle=0
+    skip() {
+      add_skipped t3-worktree "$name" "$kb" "$1"; log "skip worktree $name: $1"
+      # Idle for OPEN_IDLE_DAYS but held back by work that exists only here: worth a human look.
+      case "$1" in
+        "working tree not clean"*|*"not on origin"*) [ "$idle" = 0 ] ||
+          printf '| `%s` | %s | %s | %s |\n' "$name" "$(human "$kb")" "$(newest_activity)" "$(md_cell "$1")" >>"$TMP/attention.md" ;;
+      esac
+    }
+
+    # Guard: never touch a main checkout.
+    case "$(readlink -f "$wt")" in "$DEV_DIR"|"$DEV_DIR"/*|"$T3_PROJECTS"/*) skip "resolves into a main checkout"; continue ;; esac
+
+    # a) T3 thread state and runs
+    reason=$(thread_block_reason "$wt" "$TMP/threads.tsv" "$TMP/active-threads")
+    if [ -n "$reason" ]; then skip "$reason"; continue; fi
+    if threads_idle; then idle=1; fi
+    nopen=$(awk -F'\t' -v s="$COUNT_SETTLED" '!($4==1 || $5==1 || (s==1 && $6==1))' "$TMP/wt-threads" | wc -l)
+
+    # b) processes
+    users=$(users_of "$wt")
+    if [ -n "$users" ]; then skip "in use by process(es): $users"; continue; fi
+
+    # c) git state
+    if ! git -C "$wt" rev-parse --is-inside-work-tree >/dev/null 2>&1; then skip "not a git worktree"; continue; fi
+    if ! common=$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then skip "git common dir unknown"; continue; fi
+    main=$(dirname "$common")
+    if git -C "$main" worktree list --porcelain | awk -v p="$wt" '$1=="worktree"{c=($2==p)} c && $1=="locked"{f=1} END{exit !f}'; then
+      skip "worktree is locked"; continue
+    fi
+    dirty=$(git -C "$wt" status --porcelain=v1 --untracked-files=all 2>/dev/null || echo "?? status failed")
+    if [ -n "$dirty" ]; then
+      mod=$(grep -vc '^??' <<<"$dirty" || true); unt=$(grep -c '^??' <<<"$dirty" || true)
+      skip "working tree not clean: $mod modified/staged, $unt untracked (not ignored), e.g. $(first_line <<<"$dirty" | cut -c4-)"
+      continue
+    fi
+    if [ "$FETCH" = 1 ] && [ -z "${fetched[$common]:-}" ]; then
+      timeout 120 git -C "$main" fetch --prune --quiet origin >>"$LOG" 2>&1 || log "fetch failed in $main"
+      fetched[$common]=1
+    fi
+    branch=$(git -C "$wt" symbolic-ref --short -q HEAD || echo "(detached)")
+    default=""
+    for b in main master; do
+      if git -C "$wt" rev-parse -q --verify "refs/remotes/origin/$b" >/dev/null; then default=$b; break; fi
+    done
+    why=""
+    if [ -n "$default" ] && git -C "$wt" merge-base --is-ancestor HEAD "origin/$default"; then
+      why="merged into origin/$default"
+    elif b=$(git -C "$wt" for-each-ref --count=1 --contains HEAD --format='%(refname:short)' refs/remotes/origin) && [ -n "$b" ]; then
+      why="fully pushed ($b)"
+    else
+      # Squash-merged with the remote branch deleted: accept it when GitHub has a merged PR whose
+      # head is exactly this HEAD, and the worktree's threads have been quiet for 24 hours.
+      head=$(git -C "$wt" rev-parse HEAD)
+      url=$(git -C "$main" remote get-url origin 2>/dev/null || true)
+      slug=$(printf '%s' "$url" | sed -E 's#^(git@github\.com:|(https|ssh)://([^@/]+@)?github\.com/)##; s#\.git$##')
+      [ "$slug" != "$url" ] || slug=""
+      ahead=$(git -C "$wt" rev-list --count HEAD --not --remotes=origin 2>/dev/null || echo "?")
+      pr=""
+      if [ -n "$slug" ]; then
+        # gh prints GitHub's error body on stdout when the call fails: only an exit-0 number is a PR.
+        if ! out=$(timeout 60 gh api "repos/$slug/commits/$head/pulls" \
+                     --jq "[.[] | select(.merged_at != null and .head.sha == \"$head\") | .number] | first // empty" 2>>"$LOG"); then
+          skip "branch $branch has $ahead commit(s) not on origin and the GitHub PR lookup failed: $(md_cell "${out:0:120}")"
+          continue
+        fi
+        if [[ "$out" =~ ^[0-9]+$ ]]; then pr=$out
+        elif [ -n "$out" ]; then skip "branch $branch has $ahead commit(s) not on origin; unexpected PR lookup output: ${out:0:80}"; continue
+        fi
+      fi
+      if [ -z "$pr" ]; then
+        skip "branch $branch has $ahead commit(s) not on origin and no merged GitHub PR has this HEAD"
+        continue
+      fi
+      last=$(cut -f7 "$TMP/wt-threads" | sort | tail -1)
+      if [[ "$last" > "$CUTOFF_24H" ]]; then
+        skip "PR #$pr is merged, but its thread was active within 24h (last $last)"
+        continue
+      fi
+      why="PR #$pr merged on GitHub with this exact HEAD; threads quiet since $last"
+    fi
+
+    detail="branch $branch, $why; threads: $(awk -F'\t' 'NR<=2 {print $3}' "$TMP/wt-threads" | paste -sd ';' -)"
+    [ "$nopen" -eq 0 ] || detail="$detail; $nopen open thread(s), all idle since $(newest_activity)"
+    if [ "$MODE" = apply ]; then
+      # Re-check everything that can change while this run works: thread state, runs, processes, git.
+      query_threads "$TMP/threads-now.tsv"; query_active_threads "$TMP/active-now"
+      reason=$(thread_block_reason "$wt" "$TMP/threads-now.tsv" "$TMP/active-now")
+      [ -n "$reason" ] || { users=$(users_now "$wt"); [ -z "$users" ] || reason="in use by process(es): $users"; }
+      [ -n "$reason" ] || { [ -z "$(git -C "$wt" status --porcelain=v1 --untracked-files=all 2>/dev/null || echo failed)" ] || reason="working tree changed during this run"; }
+      if [ -n "$reason" ]; then skip "re-check before removal: $reason"; continue; fi
+      if git -C "$main" worktree remove "$wt" >>"$LOG" 2>&1; then
+        log "removed worktree $name ($(human "$kb")): $detail"
+      else
+        kb=$(kb_of "$wt"); skip "git worktree remove failed (see log)"; continue
+      fi
+    else
+      log "would remove worktree $name ($(human "$kb")): $detail"
+    fi
+    printf '%s\n' "$wt" >>"$TMP/removed-wt"
+    add_removed t3-worktree "$name" "$kb" "$detail"
+  done
+  return 0
+}
+
+# ------------------------------- 5. strip build output from idle T3 worktrees that stay
+# Only git-ignored Rust target/ (next to Cargo.toml), .NET bin/ and obj/ (next to a project file)
+# and .artifacts/ (next to Directory.Build.props or a solution). Source, node_modules (shared bun
+# hardlinks, little real space) and uncommitted files are left alone. Rebuilt on next build.
+section_strip() { # idle-days, kind
+  local idle_days=$1 kind=$2 wt name d parent kb users newest
+  local -a arts
+  [ -s "$TMP/threads.tsv" ] || query_threads "$TMP/threads.tsv"
+  query_active_threads "$TMP/active-threads"
+  for wt in "$T3_WORKTREES"/*/*/; do
+    wt=${wt%/}; name=${wt#"$T3_WORKTREES/"}
+    [ "$kind" != emergency-strip ] || ! target_reached || { log "emergency: target reached"; break; }
+    grep -qxF -- "$wt" "$TMP/removed-wt" && continue
+    [ -d "$wt" ] && git -C "$wt" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue
+    : >"$TMP/arts"
+    while IFS= read -r d; do
+      parent=$(dirname "$d")
+      case "$(basename "$d")" in
+        target) [ -f "$parent/Cargo.toml" ] || continue ;;
+        bin|obj) compgen -G "$parent/*.[cfv][sb]proj" >/dev/null || continue ;;
+        .artifacts) [ -f "$parent/Directory.Build.props" ] || compgen -G "$parent/*.sln*" >/dev/null || continue ;;
+      esac
+      if git -C "$wt" check-ignore -q "$d"; then printf '%s\n' "$d" >>"$TMP/arts"; fi
+    done < <(find "$wt" -xdev \( -name node_modules -o -name .git \) -prune -o -type d \
+               \( -name target -o -name bin -o -name obj -o -name .artifacts \) -prune -print 2>/dev/null || true)
+    [ -s "$TMP/arts" ] || continue
+    mapfile -t arts <"$TMP/arts"
+    kb=$(kb_of "${arts[@]}")
+    [ "$kb" -ge 102400 ] || continue   # under 100MB is not worth a rebuild
+    sskip() { add_skipped "$kind" "$name" "$kb" "$1"; log "skip $kind $name: $1"; }
+    users=$(users_of "$wt")
+    if [ -n "$users" ]; then sskip "in use by process(es): $users"; continue; fi
+    awk -F'\t' -v p="$wt" '$1==p {print $2}' "$TMP/threads.tsv" >"$TMP/wt-ids"
+    if awk 'NR==FNR {active[$1]=1; next} ($1 in active) {found=1} END {exit !found}' "$TMP/active-threads" "$TMP/wt-ids"; then
+      sskip "a T3 run for one of its threads is active"; continue
+    fi
+    # Idle = no tracked or untracked-but-not-ignored file changed (ignored logs and caches don't count).
+    newest=$( { cd "$wt" && git ls-files -z --cached --others --exclude-standard \
+                 | xargs -0 -r stat -c '%Y %n' 2>/dev/null; } | sort -n | tail -1 || true)
+    if [ -n "$newest" ] && [ "${newest%% *}" -gt "$(date -d "$idle_days days ago" +%s)" ]; then
+      sskip "source edited within $idle_days days (${newest#* }, $(date -d "@${newest%% *}" '+%F %H:%M'))"; continue
+    fi
+    if [ "$MODE" = apply ]; then
+      users=$(users_now "$wt")
+      if [ -n "$users" ]; then sskip "re-check before strip: in use by $users"; continue; fi
+      rm -rf -- "${arts[@]}"; log "stripped build output in $name ($(human "$kb")): ${arts[*]#"$wt/"}"
+    else
+      log "would strip build output in $name ($(human "$kb"))"
+    fi
+    add_removed "$kind" "$name" "$kb" "${#arts[@]} build output dir(s): $(printf '%s\n' "${arts[@]#"$wt/"}" | awk 'NR<=4' | paste -sd ',' -)$([ ${#arts[@]} -gt 4 ] && echo ', ...')"
+  done
+  return 0
+}
+
+# ------------------------------------------------------------------ 6. /tmp
+# Only our own top-level directories, never symlinks, nothing in use, nothing touched recently:
+#  a) directories holding nothing but build output (bin/ obj/ target/ .artifacts/), not git repos;
+#  b) review copies: *review* directories that review agents leave behind (plain source snapshots,
+#     logs, screenshots), not git checkouts, since those may hold unpushed commits;
+#  c) Claude Code session tmp dirs ($TMP_ROOT/claude-<uid>/<project>/<session>).
+# Other scratch directories are only listed (section 8), never removed.
+# Nothing under $1 modified within $2 (a date offset such as "7 days" or "2 hours"); errors count as busy.
+idle_for() { [ -z "$(find "$1" -xdev -newermt "-$2" -print -quit 2>/dev/null || echo busy)" ]; }
+build_output_only() {
+  local e found=0
+  [ ! -e "$1/.git" ] || return 1
+  for e in "$1"/* "$1"/.[!.]*; do
+    case "${e##*/}" in bin|obj|target|.artifacts) found=1 ;; *) return 1 ;; esac
+  done
+  [ "$found" = 1 ]
+}
+remove_tmp_dir() { # kind, dir, detail
+  local kb users
+  kb=$(kb_of "$2")
+  users=$(users_now "$2")
+  if [ -n "$users" ]; then add_skipped "$1" "$2" "$kb" "in use by $users"; return 0; fi
+  if [ "$MODE" = apply ]; then rm -rf -- "$2"; log "removed $1 $2 ($(human "$kb"))"; else log "would remove $1 $2 ($(human "$kb"))"; fi
+  add_removed "$1" "$2" "$kb" "$3"
+}
+section_tmp() { # build-idle, claude-idle, review-idle (e.g. "1 days"; empty skips), kind-suffix
+  local build_idle=$1 claude_idle=$2 review_idle=$3 suffix=${4:-} d
+  for d in "$TMP_ROOT"/*/; do
+    d=${d%/}
+    [ -n "$suffix" ] && target_reached && { log "emergency: target reached"; return 0; }
+    [ -O "$d" ] && [ ! -L "$d" ] || continue
+    build_output_only "$d" || continue
+    idle_for "$d" "$build_idle" || continue
+    remove_tmp_dir "tmp-build$suffix" "$d" "only build output (bin/obj/target/.artifacts), idle over $build_idle"
+  done
+  for d in "$TMP_ROOT"/*review*/; do
+    [ -n "$review_idle" ] || break
+    d=${d%/}
+    [ -n "$suffix" ] && target_reached && { log "emergency: target reached"; return 0; }
+    [ -O "$d" ] && [ ! -L "$d" ] && [ ! -e "$d/.git" ] || continue
+    build_output_only "$d" && continue   # already handled above
+    idle_for "$d" "$review_idle" || continue
+    remove_tmp_dir "tmp-review$suffix" "$d" "review copy (not a git checkout), idle over $review_idle"
+  done
+  for d in "$CLAUDE_TMP"/*/*/; do
+    d=${d%/}
+    [ -n "$suffix" ] && target_reached && { log "emergency: target reached"; return 0; }
+    [ -O "$d" ] && [ ! -L "$d" ] || continue
+    idle_for "$d" "$claude_idle" || continue
+    remove_tmp_dir "tmp-claude$suffix" "$d" "Claude Code session tmp, idle over $claude_idle"
+  done
+  return 0
+}
+
+# ------------------------------------------------------------------ 7. Docker
+# Build cache older than 3 days and anything beyond $DOCKER_BUILD_CACHE_MAX (least recently used
+# first), images no container uses that were created over 7 days ago, anonymous volumes no
+# container uses. Named volumes, containers and images in use are never touched.
+docker_reclaimed_kb() { # parses "Total reclaimed space: 1.2GB" from docker prune output
+  local v; v=$(sed -nE 's/^Total( reclaimed space)?:[[:space:]]*([0-9.]+)([kMGT]?)B$/\2\3/p' | tail -1)
+  if [ -n "$v" ]; then echo $(( $(numfmt --from=si "$v") / 1024 )); else echo 0; fi
+}
+docker_prune() { # label, type, docker args...
+  local label=$1 type=$2 kb upper; shift 2
+  if [ "$MODE" = apply ]; then
+    kb=$(docker "$@" 2>>"$LOG" | docker_reclaimed_kb)
+    log "docker $*: reclaimed $(human "$kb")"
+    add_removed docker "docker $*" "$kb" "$label"
+  else
+    upper=$(docker system df --format '{{.Type}}\t{{.Reclaimable}}' 2>/dev/null | awk -F'\t' -v t="$type" '$1==t {split($2, a, " "); print a[1]}')
+    add_removed docker "docker $*" 0 "$label; up to ${upper:-?} reclaimable (exact amount only known after the run)"
+  fi
+}
+section_docker() {
+  command -v docker >/dev/null && docker info >/dev/null 2>&1 || return 0
+  docker_prune "build cache older than 72h" "Build Cache" builder prune -f --filter until=72h
+  docker_prune "build cache beyond $DOCKER_BUILD_CACHE_MAX, least recently used first" "Build Cache" \
+    builder prune -f --max-used-space "$DOCKER_BUILD_CACHE_MAX"
+  docker_prune "unused images created over 7 days ago" "Images" image prune -a -f --filter until=168h
+  docker_prune "anonymous volumes no container uses" "Local Volumes" volume prune -f
+  return 0
+}
+
+# --------------------------------------------- 8. inventory: needs a decision
+section_inventory() {
+  local d kb
+  {
+    echo "Not touched by this script (not approved). Large items, for reference:"
+    echo
+    echo '| Path | Size | Note |'
+    echo '|---|---|---|'
+    for d in "$HOME/.local/share"/* "$HOME/.local/state"/*; do
+      case "$d" in */plannotator-install-backups|*/chezmoi-deploy-backups|*/dev1-cleanup) continue ;; esac
+      kb=$(kb_of "$d"); if [ "$kb" -ge 51200 ]; then printf '%s\t%s\n' "$kb" "$d"; fi
+    done | sort -rn | while IFS=$'\t' read -r kb d; do
+      printf '| `%s` | %s | ~/.local |\n' "${d#"$HOME/"}" "$(human "$kb")"
+    done
+    for d in "$HOME/.nuget/packages" "$HOME/.cache/ms-playwright" "$HOME/.rustup" "$HOME/.gradle" /usr/lib/android-sdk \
+             "$DEV_DIR"/*/.claude/worktrees; do
+      [ -e "$d" ] || continue
+      printf '| `%s` | %s | not approved |\n' "${d#"$HOME/"}" "$(human "$(kb_of "$d")")"
+    done
+    # Our other /tmp directories over 500MB (git checkouts, other scratch): retention undecided.
+    for d in "$TMP_ROOT"/*/; do
+      d=${d%/}
+      [ -O "$d" ] && [ ! -L "$d" ] && [ "$d" != "$CLAUDE_TMP" ] || continue
+      kb=$(kb_of "$d"); if [ "$kb" -ge 512000 ]; then printf '%s\t%s\t%s\n' "$kb" "$d" "$(date -r "$d" +%F)"; fi
+    done | sort -rn | awk 'NR<=20' | while IFS=$'\t' read -r kb d m; do
+      printf '| `%s` | %s | /tmp scratch, modified %s; retention undecided |\n' "$d" "$(human "$kb")" "$m"
+    done
+  } >"$NOTES"
+  return 0
+}
+
+# ---------------------------------------------- 9. emergency (bounded, ordered)
+# Each step runs only while free space is below EMERGENCY_TARGET_GIB. Same safety checks as above;
+# only ages are shorter. Worktree removal rules are never relaxed.
+section_emergency_docker() {
+  target_reached && return 0
+  command -v docker >/dev/null && docker info >/dev/null 2>&1 || return 0
+  docker_prune "emergency: all unused build cache" "Build Cache" builder prune -a -f
+}
+
+run_section caches section_caches
+run_section git-prune section_git_prune
+run_section mise section_mise
+run_section pnpm section_pnpm
+run_section backups section_backups
+run_section t3-builds section_t3_builds
+run_section t3-legacy-db section_t3_legacy_db
+run_section t3-worktrees section_worktrees
+run_section strip section_strip "$IDLE_DAYS" strip
+run_section tmp section_tmp "$TMP_BUILD_DAYS days" "$CLAUDE_TMP_DAYS days" "$REVIEW_TMP_DAYS days"
+run_section docker section_docker
+if [ "$EMERGENCY" = 1 ]; then
+  log "emergency: $(gib "$(avail_kb)")GiB free, target ${EMERGENCY_TARGET_GIB}GiB"
+  run_section emergency-docker section_emergency_docker
+  run_section emergency-tmp section_tmp "2 hours" "1 days" "" -emergency
+  run_section emergency-strip section_strip 1 emergency-strip
+fi
+run_section inventory section_inventory
+
+# ------------------------------------------------------------------- report
+DISK_AFTER=$(disk_line)
+FREED_KB=$(( $(avail_kb) - AVAIL_BEFORE ))
+APPARENT_KB=$(awk '{s+=$1} END {print s+0}' "$TMP/removed-kb")
+STAMP=$(date '+%Y-%m-%d %H:%M %Z')
+{
+  echo "# dev1-cleanup report: $STAMP ($MODE)"
+  echo
+  if [ "$MODE" = apply ]; then
+    echo "- **Freed (measured change in free space):** $( [ "$FREED_KB" -ge 0 ] && human "$FREED_KB" || echo "-$(human $(( -FREED_KB )))" )"
+    echo "- Apparent size of removed items (du; hardlinked caches free less): $(human "$APPARENT_KB")"
+  else
+    echo "- **Would free (apparent du size; hardlinked caches free less):** $(human "$APPARENT_KB")"
+  fi
+  echo "- **Disk before:** $DISK_BEFORE"
+  echo "- **Disk after:** $DISK_AFTER"
+  echo "- Options: count-settled=$COUNT_SETTLED, fetch=$FETCH, emergency=$EMERGENCY"
+  if [ -s "$FAILED" ]; then
+    echo "- **Failed sections (see cleanup.log):** $(paste -sd ',' "$FAILED" | sed 's/,/, /g')"
+  fi
+  echo
+  echo "Free-space change per section (measured; other writers on the disk add noise): $(awk -F'\t' '$2 >= 52429 || $2 <= -52429 {printf "%s%s %+.1fG", sep, $1, $2/1048576; sep=", "} END {if (!sep) printf "none over 0.05G"}' "$TMP/section-df")"
+  echo
+  echo "## $([ "$MODE" = apply ] && echo Removed || echo "Would remove") ($(grep -c . "$REMOVED" || true))"
+  echo
+  echo '| Kind | Item | Size | Detail |'
+  echo '|---|---|---|---|'
+  sort -t'|' -k2,2 "$REMOVED"
+  echo
+  echo "## Needs your attention ($(grep -c . "$TMP/attention.md" || true))"
+  echo
+  echo "T3 worktrees idle over ${OPEN_IDLE_DAYS} days that are kept only because of work not on origin. Nothing here is removed."
+  echo
+  echo '| Worktree | Size | Last activity | Why it stays |'
+  echo '|---|---|---|---|'
+  cat "$TMP/attention.md"
+  echo
+  echo "## Skipped ($(grep -c . "$SKIPPED" || true))"
+  echo
+  echo '| Kind | Item | Size | Reason |'
+  echo '|---|---|---|---|'
+  cat "$SKIPPED"
+  echo
+  echo "## Not touched"
+  echo
+  cat "$NOTES"
+} >"$REPORT"
+cp "$REPORT" "$STATE_DIR/reports/$(date +%Y%m%d-%H%M%S)-$MODE.md"
+find "$STATE_DIR/reports" -maxdepth 1 -name '*.md' -printf '%T@\t%p\n' | sort -rn | awk -F'\t' 'NR>30 {print $2}' | xargs -r rm -f
+[ "$MODE" != apply ] || touch "$STATE_DIR/last-apply"
+if [ "$MODE" = apply ]; then
+  log "done: freed $(human "$(( FREED_KB > 0 ? FREED_KB : 0 ))") measured ($(human "$APPARENT_KB") apparent); disk: $DISK_AFTER"
+  echo "Freed $(human "$(( FREED_KB > 0 ? FREED_KB : 0 ))") (measured). Report: $REPORT"
+else
+  log "done: would free $(human "$APPARENT_KB") apparent; disk: $DISK_AFTER"
+  echo "Would free $(human "$APPARENT_KB") (apparent). Report: $REPORT"
+fi
+if [ -s "$FAILED" ]; then
+  echo "failed sections: $(paste -sd ' ' "$FAILED")" >&2
+  exit 1
+fi

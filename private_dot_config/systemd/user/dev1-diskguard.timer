@@ -1,0 +1,9 @@
+[Unit]
+Description=Check free disk space hourly and clean up early when it runs low
+
+[Timer]
+OnStartupSec=10min
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=timers.target

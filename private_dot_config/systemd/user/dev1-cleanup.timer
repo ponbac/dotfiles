@@ -1,0 +1,12 @@
+[Unit]
+Description=Run dev1-cleanup every night
+
+[Timer]
+# Daily; a run missed while the machine was off happens at the next boot.
+# dev1-diskguard.timer covers low free space between nightly runs.
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
