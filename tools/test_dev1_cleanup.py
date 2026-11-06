@@ -217,6 +217,39 @@ class Dev1CleanupTests(unittest.TestCase):
         self.apply()
         self.assertEqual({p.name: p.exists() for p in cases}, {p.name: keep for p, keep in cases.items()})
 
+    def test_bun_cache_keeps_packages_node_modules_still_link_to(self):
+        cache = self.home / '.bun/install/cache'
+        modules = self.home / 'proj/node_modules/.bun'
+
+        def package(name, linked, seconds_ago=2 * DAY):
+            pkg = cache / f'{name}@1.0.0@@@1'
+            pkg.mkdir(parents=True)
+            (pkg / 'index.js').write_text(name)
+            if linked:
+                (modules / name).mkdir(parents=True)
+                os.link(pkg / 'index.js', modules / name / 'index.js')
+            version_link = cache / name / '1.0.0@@@1'
+            version_link.parent.mkdir(parents=True)
+            version_link.symlink_to(pkg)
+            age_tree(pkg, seconds_ago)
+            return pkg, version_link
+
+        cases = {  # path -> expected to survive
+            **dict.fromkeys(package('used', linked=True), True),
+            **dict.fromkeys(package('unused', linked=False), False),
+            **dict.fromkeys(package('@scope/unused', linked=False), False),
+            **dict.fromkeys(package('just-extracted', linked=False, seconds_ago=60), True),
+        }
+        for name, days, keep in (('old.npm', 10, False), ('fresh.npm', 1, True)):
+            (cache / name).write_text('{}')
+            age_tree(cache / name, days * DAY)
+            cases[cache / name] = keep
+        self.apply()
+        self.assertEqual({str(p.relative_to(cache)): p.exists() or p.is_symlink() for p in cases},
+                         {str(p.relative_to(cache)): keep for p, keep in cases.items()})
+        self.assertFalse((cache / '@scope').exists())
+        self.assertEqual((modules / 'used/index.js').read_text(), 'used')
+
     # --- emergency and guard ---------------------------------------------------------------------
 
     def test_emergency_stops_once_free_space_reaches_target(self):

@@ -591,7 +591,9 @@ pinned unless runtime evidence requires a fix.
 
 ## dev-1 disk cleanup (dev-1 only)
 
-`~/.local/bin/dev1-cleanup` keeps dev-1's disk from filling up. It clears regenerable caches,
+`~/.local/bin/dev1-cleanup` keeps dev-1's disk from filling up. It clears regenerable caches
+(bun's install cache is kept, since `node_modules` hardlink into it; only packages nothing links
+to any more are removed),
 removes finished T3 worktrees, strips build output from idle worktrees, deletes idle
 build-output-only directories, review copies (3 days idle, never git checkouts) and old Claude
 session directories in `/tmp`, and caps the Docker

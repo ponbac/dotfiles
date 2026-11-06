@@ -24,11 +24,12 @@
 # of uncommitted or unpushed work are listed under "Needs your attention". Worktrees that stay get their
 # git-ignored build output (.NET bin/obj/.artifacts, Rust target/) stripped after 3 idle days.
 # /tmp: idle build-output-only directories (1 day), review copies (3 days) and Claude session dirs
-# (7 days) are removed.
+# (7 days) are removed. Bun's install cache is kept (node_modules hardlink into it); only packages
+# no node_modules links to any more are removed.
 #
 # Each section runs isolated: a failing section is logged and reported, later sections still run,
 # and the run exits 1. "Freed" is the measured change in free space; du sizes are apparent sizes
-# (hardlinked caches such as bun's free less than their du size).
+# (hardlinked files free less than their du size).
 #
 # Report: ~/.local/state/dev1-cleanup/last-report.md (copies in reports/)
 # Log:    ~/.local/state/dev1-cleanup/cleanup.log
@@ -49,7 +50,7 @@ for arg in "$@"; do
     --no-fetch) FETCH=0 ;;
     --emergency) EMERGENCY=1 ;;
     --guard) GUARD=1 ;;
-    -h|--help) sed -n '2,31p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,32p' "$0"; exit 0 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
@@ -75,6 +76,7 @@ CLAUDE_TMP_DAYS=7         # Claude session tmp dirs idle this long are removed
 REVIEW_TMP_DAYS=3         # /tmp/*review* copies idle this long are removed (Pontus 2026-11-06)
 IDLE_DAYS=3               # worktree build output is stripped after this many idle days
 OPEN_IDLE_DAYS=7          # worktrees whose threads are all this idle count as done, settled or not
+BUN_MANIFEST_DAYS=7       # bun registry manifests (*.npm) unused this long are removed
 DOCKER_BUILD_CACHE_MAX=5GB
 
 mkdir -p "$STATE_DIR/reports"
@@ -165,7 +167,6 @@ scan_open_paths "$TMP/open-paths"
 CACHES=(
   "NuGet http-cache|$HOME/.local/share/NuGet/http-cache"
   "NuGet temp|$TMP_ROOT/NuGetScratch$USER"
-  "bun install cache|$HOME/.bun/install/cache"
   "npm cache|$HOME/.npm/_cacache"
   "npx cache|$HOME/.npm/_npx"
   "pnpm metadata cache|$HOME/.cache/pnpm"
@@ -200,6 +201,43 @@ section_caches() {
     add_removed cache "$path" "$kb" "$label"
   done
   return 0
+}
+
+# ------------------------------------------------------------ 1b. bun install cache
+# Bun hardlinks package files from its cache into node_modules. Emptying the cache freed almost
+# nothing (the files stayed linked from worktrees) and made every later install store fresh copies
+# instead of sharing them: on 2026-11-06, ~17 GiB of duplicate package files across worktrees.
+# So keep the cache and remove only packages that no node_modules links to any more (no file with
+# more than one link) and that were not written in the last hour, plus the dangling
+# name/version symlinks they leave and manifests unused for BUN_MANIFEST_DAYS.
+BUN_CACHE="$HOME/.bun/install/cache"
+section_bun_cache() {
+  local c=$BUN_CACHE pkg users k kb=0 n=0 mkb=0 mn=0 f
+  [ -d "$c" ] || return 0
+  users=$(users_now "$c")
+  if [ -n "$users" ]; then
+    add_skipped cache "$c" "$(kb_of "$c")" "in use by $users"; log "skip bun cache: in use by $users"; return 0
+  fi
+  for pkg in "$c"/*@@@*/ "$c"/@*/*@@@*/; do
+    pkg=${pkg%/}
+    if [ -L "$pkg" ] || [ ! -d "$pkg" ]; then continue; fi
+    [ -z "$(find "$pkg" -type f -links +1 -print -quit 2>/dev/null || echo linked)" ] || continue
+    idle_for "$pkg" "1 hours" || continue
+    k=$(kb_of "$pkg")
+    if [ "$MODE" = apply ]; then rm -rf -- "$pkg"; fi
+    kb=$(( kb + k )); n=$(( n + 1 ))
+  done
+  while IFS= read -r -d '' f; do
+    k=$(kb_of "$f"); mkb=$(( mkb + k )); mn=$(( mn + 1 ))
+    if [ "$MODE" = apply ]; then rm -f -- "$f"; fi
+  done < <(find "$c" -maxdepth 1 -type f -name '*.npm' -mtime +"$BUN_MANIFEST_DAYS" -print0)
+  if [ "$MODE" = apply ]; then
+    find "$c" -mindepth 2 -maxdepth 3 -xtype l -delete 2>>"$LOG" || true
+    find "$c" -mindepth 1 -maxdepth 2 -type d -empty -delete 2>>"$LOG" || true
+  fi
+  [ $(( n + mn )) -gt 0 ] || return 0
+  log "$([ "$MODE" = apply ] && echo removed || echo 'would remove') from bun cache: $n unused package(s) ($(human "$kb")), $mn old manifest(s) ($(human "$mkb"))"
+  add_removed cache "$c" "$(( kb + mkb ))" "bun: $n package(s) no node_modules links to, $mn manifest(s) unused ${BUN_MANIFEST_DAYS}d"
 }
 
 # ------------------------------------- 2. git worktree prune (~/dev and T3 project repos)
@@ -695,6 +733,7 @@ section_emergency_docker() {
 }
 
 run_section caches section_caches
+run_section bun-cache section_bun_cache
 run_section git-prune section_git_prune
 run_section mise section_mise
 run_section pnpm section_pnpm
