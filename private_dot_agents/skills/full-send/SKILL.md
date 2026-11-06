@@ -1,6 +1,6 @@
 ---
 name: full-send
-description: Take a change all the way to merged with nobody watching. Use when the user says "full send", or "crossbuild" with `finish: merge`.
+description: 'Take a change all the way to merged with nobody watching. Use when the user says "full send", or "crossbuild" with `finish: merge`.'
 ---
 
 # Full send

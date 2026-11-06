@@ -1,6 +1,6 @@
 ---
 name: full-stop
-description: Build with the other model as gatekeeper, and stop before the merge. Use when the user says "full stop" or "full-stop draft", says "crossbuild" (`finish: push` means `draft`), asks for the Sol/Opus "review and second opinion way of working", or a brief requires it.
+description: 'Build with the other model as gatekeeper, and stop before the merge. Use when the user says "full stop" or "full-stop draft", says "crossbuild" (`finish: push` means `draft`), asks for the Sol/Opus "review and second opinion way of working", or a brief requires it.'
 argument-hint: "[draft]"
 ---
 
