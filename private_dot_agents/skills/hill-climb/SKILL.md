@@ -47,10 +47,10 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
 
    Done when row 0 is on the scoreboard and the target definition names the mode, the number and what is averaged.
 3. **Climb.** Each round:
-   1. Make one coherent batch of changes aimed at the judges' or the eval's top complaints. Make it big enough to show above the noise: favour complaints both judges share or that repeat across screens. When the gap is the app's overall look rather than single defects ("generic grey", "no personality"), change it app-wide (colour, type, icons, shared components), not one screen at a time. Before acting on a complaint, check it against the pixels or the code. Log claims that don't hold in `STATE.md`, and skip them. When a judge asks to undo something it asked for earlier, keep the current version and log the reversal.
+   1. Make one coherent batch of changes aimed at the judges' or the eval's top complaints. Make it big enough to show above the noise: favour complaints both judges share or that repeat across screens. When the gap is the app's overall look rather than single defects ("generic grey", "no personality"), change it app-wide (colour, type, icons, shared components), not one screen at a time. Before acting on a complaint, check it against the pixels or the code. Log claims that don't hold in `STATE.md`, and skip them. Check complaints about content below the fold in the running app, since the shots may not show it. When a judge asks to undo something it asked for earlier, keep the current version and log the reversal. When judges keep flagging the test data, check whether it looks like production. If it doesn't, fixing it is part of step 1 (tell Pontus, since it changes the artefact). If it does, log the complaint once as a known artefact and skip it in later rounds.
    2. Run the regression gate.
    3. Capture the round.
-   4. For the council, do a **regression review** yourself: compare the previous round against this one, shot by shot, and check every item on the must-keep list. Then look at every key shot for what judges miss: clipped or overflowing text, controls that crowd or cover each other, elements in odd places, and awkward or unclear copy (judges read the UI's language poorly). Fix what you find, recapture, then score.
+   4. For the council, do a **regression review** yourself: compare the previous round against this one, shot by shot, and check every item on the must-keep list. Then look at every key shot, and each change at every viewport in the shot list, for what judges miss: clipped or overflowing text, controls that crowd or cover each other, elements in odd places, and awkward or unclear copy (judges read the UI's language poorly). Fix what you find, recapture, then score.
    5. Score the round and append the row to the scoreboard.
    6. Post the round update in this thread, and also to Gon if that was chosen: the round table from COUNCIL.md (or the eval score and its spread), what changed, and annotated screenshots of the changes, with arrows and a one-line note per change. Post the images at full resolution, with desktop shots at their full width. Annotated images are for Pontus only. Judges get raw shots.
 
@@ -61,11 +61,12 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
      - Eval: the target holds for two consecutive rounds, then 3 further runs also pass.
    - **Plateau:** any of these:
      - for two consecutive rounds, no judge backed the round (Progress in COUNCIL.md). Weak-signal rounds don't count;
-     - for three consecutive rounds, no judge's distance to the target shrank by more than its noise, even if the rounds were backed;
+     - for three consecutive rounds, no judge reached a new best distance to the target (by more than its noise), even if the rounds were backed;
      - for two rounds, the eval median didn't beat the previous one by more than its noise (EVAL.md).
+   - **Exhausted** (council): no complaint survives the filter for a batch. A complaint survives when it holds against the pixels or the app, both judges share it or it repeats across screens, and it is not a reversal, a test-data artefact, or contradicted by the other judge.
    - **Budget:** the round budget is spent.
 
-   On plateau or budget, tell Pontus how far from the target each judge is and what the references score. Say whether the top remaining complaints contradict the other judge or the same judge's earlier requests. If most do, the judges have run out of shared direction and more rounds will flip back and forth. Pontus decides whether to extend, retarget or end the climb.
+   On plateau, exhaustion or budget, tell Pontus how far from the target each judge is and what the references score. Say whether the top remaining complaints contradict the other judge or the same judge's earlier requests. If most do, the judges have run out of shared direction and more rounds will flip back and forth. Pontus decides whether to extend, retarget or end the climb.
 5. **Report.** Open a draft PR with `commit-and-push` and include the scoreboard in its body. Give Pontus:
    - the stop reason;
    - the scoreboard;
@@ -81,5 +82,5 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
 
 - Pontus owns the target. You raise it, lower it or reinterpret it only when he says so.
 - Pontus's must-keep list, taste notes and priorities beat any judge complaint. When a judge asks for the opposite, keep Pontus's version and note it in the update.
-- Keep the artefact fixed for the whole climb: the same shot list, references and data, or the same eval cases. Change it only with Pontus's approval, then restart at step 2.
-- Fix the work, not the meter. A change that only moves the score is a regression. For example: text aimed at the judges in the UI, test data changed to please a judge rather than to look like production, or an eval case special-cased in code.
+- Keep the artefact fixed for the whole climb: the same shot list, references and data, or the same eval cases. Change it only with Pontus's approval, then restart at step 2. The exception is a capture fix that changes only size or scaling, not content. Recapture the previous round's code with the fixed `capture` as the previous images, and say so in the round table.
+- Fix the work, not the meter. A change that only moves the score is a regression. For example: text aimed at the judges in the UI, test data changed to please a judge rather than to look like production, an eval case special-cased in code, or changes added to a batch just to clear the weak-signal line.

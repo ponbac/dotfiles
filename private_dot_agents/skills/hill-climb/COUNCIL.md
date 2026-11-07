@@ -11,7 +11,7 @@ Two judges score screenshots. Scores are vibes and drift between runs, so every 
 
 Check the IDs with `orchestrator_capabilities` once per climb. If a judge is unavailable, stop and tell Pontus rather than swapping in another model.
 
-Delegate and wait as in `second-opinion` steps 2 and 3. Use `role: "review"`, `mode: "async"`, the title `Hill climb <slug> r<N>: <judge>` and the clientRequestId `<slug>-hc-r<N>-<judge>`. Every round is a **new** `delegate_task` for every judge. Never send a judge a follow-up in an existing thread.
+Delegate and wait as in `second-opinion` steps 2 and 3. Use `role: "review"`, `mode: "async"`, the title `Hill climb <slug> r<N>: <judge>` and the clientRequestId `<slug>-hc-r<N>-<judge>`. Every round is a **new** `delegate_task` for every judge. Never send a judge a follow-up in an existing thread. Set `target.projectId` to a project outside the repo, such as the home project (`~`), never the climb's checkout. A judge running in the repo can read its docs and Pontus's taste notes, which breaks the blind test.
 
 **Calibration (round 0).** Both judges score the base shots and the references. Their scales differ: in practice, Opus scores well below Sol. So the target is set per judge, from this round.
 
@@ -19,7 +19,7 @@ Run both judges every round. With one judge alone, the other's gap stays hidden 
 
 ## Shot list
 
-Fix the shot list in step 1 with Pontus. Choose 16–24 key shots: the screens that matter most to him, the states they have (populated, empty, error), light and dark, phone and desktop. A longer **full list** is optional, and it is shot only for calibration and the confirmation round. Shoot every entry with `capture`, in the same order, at the same size, with the same data. Never scale shots down: judges read scaled text as smaller than it is and ask for bigger type. If an image must be smaller, crop it.
+Fix the shot list in step 1 with Pontus. Choose 16–24 key shots: the screens that matter most to him, the states they have (populated, empty, error), light and dark, phone and desktop. A longer **full list** is optional, and it is shot only for calibration and the confirmation round. Shoot every entry with `capture`, in the same order, at the same size, with the same data. Never scale shots down: judges read scaled text as smaller than it is and ask for bigger type. If an image must be smaller, crop it. For a screen taller than the viewport, add a shot scrolled to its end, so judges don't guess at what's below the fold.
 
 To build `capture`, see the `run` skill for starting the app, and use `agent-browser`, the T3 `preview_*` tools or `rea capture_web_screenshot` to take the shots. Starting the app inside the command means a dev server dying between rounds can't break a capture.
 
@@ -38,7 +38,7 @@ Log the source and crop of each one in `references/SOURCES.md`. Changing the ref
 For each round, build `packets/<round>/` by copying images under neutral names:
 
 - each fixed shot that **visibly changed** since the previous round as two images, the previous round's scored image and the current one, labelled `A` and `B` with a fresh coin flip per shot (`S01-A`, `S01-B`). In round 1 the previous round is the base. Comparing with the previous round catches regressions; comparing with the base stops telling you anything after a round or two.
-- each **unchanged** shot as one image (`S02`). A shot is unchanged when its pixel diff against the previous round is only anti-aliasing or a few pixels (under 0.1% of pixels, e.g. with ImageMagick `compare -metric AE`). Near-identical pairs only make judges flip coins.
+- each **unchanged** shot as one image (`S02`). A shot is unchanged when nothing in the batch touched it and its pixel diff against the previous round is only rendering noise (under 0.1% of pixels, e.g. with ImageMagick `compare -metric AE`). Near-identical pairs only make judges flip coins. A shot the batch deliberately changed, a copy edit for example, is a pair however small its diff.
 - each reference under a neutral name such as `R01`.
 
 Keep the key (which label is which) only in `STATE.md`. Calibration packets hold the base shots and the references, with no pairs.
@@ -85,5 +85,5 @@ If a file is missing or incomplete, relaunch that judge once with a fresh `deleg
   Under the table, list:
   - each judge's picks on the changed pairs, whether it backs the round, and whether the signal is weak;
   - each judge's gap change from the previous round, and the noise;
-  - each judge's distance to the target, and its change over the last 3 rounds;
+  - each judge's distance to the target, and its best so far;
   - drift.
