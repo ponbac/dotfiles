@@ -43,19 +43,21 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
       - **Relative** (council default): in the same round, every judge's mean for every category is at least that judge's reference mean plus a margin. The margin is 0.3 unless Pontus picks another. Reference drift can't move this target, because both sides are scored in the same round.
       - **Absolute:** every judge's mean for every category is at least N. Point out how close the references come to N. If the reference apps don't reach it, it's probably out of reach.
 
+      For each proposed target, show the gain each judge needs in its furthest category. If any judge needs more than about 1 point, say it's unlikely within the budget, and offer a smaller margin, more rounds, or a bigger redesign first.
+
    Done when row 0 is on the scoreboard and the target definition names the mode, the number and what is averaged.
 3. **Climb.** Each round:
-   1. Make one coherent batch of changes aimed at the judges' or the eval's top complaints. Before acting on a complaint, check it against the pixels or the code. Log claims that don't hold in `STATE.md`, and skip them.
+   1. Make one coherent batch of changes aimed at the judges' or the eval's top complaints. Make it big enough to show above the noise: favour complaints both judges share or that repeat across screens. When the gap is the app's overall look rather than single defects ("generic grey", "no personality"), change it app-wide (colour, type, icons, shared components), not one screen at a time. Before acting on a complaint, check it against the pixels or the code. Log claims that don't hold in `STATE.md`, and skip them.
    2. Run the regression gate.
    3. Capture the round.
-   4. For the council, do a **regression review** yourself: compare the previous round against this one, shot by shot, and check every item on the must-keep list. Fix what slipped before scoring.
+   4. For the council, do a **regression review** yourself: compare the previous round against this one, shot by shot, and check every item on the must-keep list. Then look at every key shot for what judges miss: clipped or overflowing text, controls that crowd or cover each other, elements in odd places, and awkward or unclear copy (judges read the UI's language poorly). Fix what you find, recapture, then score.
    5. Score the round and append the row to the scoreboard.
-   6. Post the round update: the round table from COUNCIL.md (or the eval score and its spread), what changed, and annotated screenshots of the changes, with arrows and a one-line note per change. Annotated images are for Pontus only. Judges get raw shots.
+   6. Post the round update in this thread, and also to Gon if that was chosen: the round table from COUNCIL.md (or the eval score and its spread), what changed, and annotated screenshots of the changes, with arrows and a one-line note per change. Post the images at full resolution, with desktop shots at their full width. Annotated images are for Pontus only. Judges get raw shots.
 
-   Keep one round in judging at a time. You may prepare the next batch, but capture it only after the scores are in. While only judges are running, post one status line and end the turn; their completion wakes the thread. Work in a worktree on a PR branch. Done for the round when the gate is green, the row is written and the update is posted.
+   Keep one round in judging at a time. You may prepare the next batch, but capture it only after the scores are in. While only judges are running, post one status line and end the turn; their completion wakes the thread. Don't run a climb under `/goal`: its Stop hook keeps restarting the turn while judges run. Work in a worktree on a PR branch. Done for the round when the gate is green, the row is written and the update is posted.
 4. **Stop.** Stop on the first of these, and record the reason:
    - **Reached:** the target as defined in step 2 holds for two consecutive rounds, then a confirmation round also passes. A council confirmation uses fresh judges and the full shot list. An eval confirmation is 3 further runs.
-   - **Plateau:** for two rounds, no judge's category mean (or the eval median) improved by more than the noise defined in COUNCIL.md or EVAL.md.
+   - **Plateau:** for two consecutive rounds, no judge backed the round (Progress in COUNCIL.md), or the eval median didn't beat the previous one by more than its noise (EVAL.md).
    - **Budget:** the round budget is spent.
 
    On plateau or budget, tell Pontus how far from the target each judge is and what the references score. He decides whether to extend, retarget or end the climb.
@@ -66,7 +68,7 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
    - the judge claims that didn't hold up;
    - the rounds and child threads used.
 
-   For the council, also show a before/after board: an HTML page with each fixed shot side by side, base against final, shown with `html_preview` and `html_render`.
+   For the council, also show a before/after board: an HTML page with each fixed shot side by side, base against final, at full resolution, with arrows and a one-line note per change on the final shot. Show it with `html_preview` and `html_render`.
 
    The climb ends here. A new target, new references or a new category start a new climb, stacked on this PR, when Pontus asks for one.
 

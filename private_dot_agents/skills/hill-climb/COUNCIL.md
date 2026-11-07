@@ -15,7 +15,7 @@ Delegate and wait as in `second-opinion` steps 2 and 3. Use `role: "review"`, `m
 
 **Calibration (round 0).** Both judges score the base shots and the references. Their scales differ: in practice, Opus scores well below Sol. So the target is set per judge, from this round.
 
-**Staging.** From round 1, run Sol alone until Sol meets the target, then run both judges every round. The confirmation round always uses both. Staging rounds count toward the budget.
+Run both judges every round. With one judge alone, the other's gap stays hidden until it runs again.
 
 ## Shot list
 
@@ -37,7 +37,8 @@ Log the source and crop of each one in `references/SOURCES.md`. Changing the ref
 
 For each round, build `packets/<round>/` by copying images under neutral names:
 
-- each fixed shot as two images, the **previous round** and the current round, labelled `A` and `B` with a fresh coin flip per shot. In round 1 the previous round is the base. Comparing with the previous round catches regressions; comparing with the base stops telling you anything after a round or two.
+- each fixed shot that **changed** since the previous round as two images, the previous round and the current round, labelled `A` and `B` with a fresh coin flip per shot (`S01-A`, `S01-B`). In round 1 the previous round is the base. Comparing with the previous round catches regressions; comparing with the base stops telling you anything after a round or two.
+- each **unchanged** shot (pixel-identical to the previous round, checked by comparing the files) as one image (`S02`). A pair of identical images only adds noise.
 - each reference under a neutral name such as `R01`.
 
 Keep the key (which label is which) only in `STATE.md`. Calibration packets hold the base shots and the references, with no pairs.
@@ -46,29 +47,33 @@ Keep the key (which label is which) only in `STATE.md`. Calibration packets hold
 
 Send this every round with only the paths filled in, and nothing else:
 
-> You are reviewing the visual design of an app's UI. The images are in `<packet path>`; look only there.
-> For each shot pair, say which of A or B is better designed and why, in one line.
-> Score every image, including each `R` image, 1–10 on each category below, with a one-line reason per score: typography, hierarchy, spacing & density, colour & contrast, iconography, consistency & polish, clarity, character (does it have colour and a personality of its own, rather than generic grey), and overall.
-> For each pair, give the three changes that would most improve the weaker image.
+> You are reviewing the visual design of an app's UI. The images are in `<packet path>`; look only there. Images named `S<nn>-A` and `S<nn>-B` are two versions of the same screen.
+> For each such pair, say which of A or B is better designed and why, in one line.
+> Score every image, including each `R` image, 1–10 on each category below, with a one-line reason per score. Use exactly these JSON keys: `typography`, `hierarchy`, `spacing_density`, `colour_contrast`, `iconography`, `consistency_polish`, `clarity`, `character` (does it have colour and a personality of its own, rather than generic grey), and `overall`.
+> For each `S` screen, give the three changes that would most improve it. For a pair, improve the weaker image.
 > Write your answer as JSON to `<score file path>`, exactly in this shape, then reply with only that path:
-> `{"pairs":[{"shot":"S01","better":"A","reason":"…"}],"scores":[{"image":"S01-A","typography":{"score":8,"reason":"…"}, …one entry per category…}],"fixes":[{"shot":"S01","changes":["…","…","…"]}]}`
+> `{"pairs":[{"shot":"S01","better":"A","reason":"…"}],"scores":[{"image":"S01-A","typography":{"score":8,"reason":"…"}, …one entry per key…}],"fixes":[{"shot":"S01","changes":["…","…","…"]}]}`
 > Change no files other than the score file.
 
-The brief never names the target, the round number, earlier scores, which image is newer, what changed or that this is a climb. Pontus's taste notes guide your changes. They stay out of the brief.
+For calibration, which has no pairs, send the same brief without the first sentence about pairs and the pairs line, and with `"pairs":[]` in the shape.
+
+The brief never names the target, the round number, earlier scores, which image is newer, what changed or that this is a climb. Pontus's taste notes guide your changes. They stay out of the brief. If a judge asks a question, answer only about the packet's format.
 
 **Validate** each score file as it arrives:
 
 - it parses;
 - every pair has a verdict;
-- every image, references included, has all nine categories as whole numbers from 1 to 10.
+- every image, references included, has all nine keys, spelled exactly as in the brief, each with a whole-number score from 1 to 10.
 
-If a file is missing or incomplete, relaunch that judge once with a fresh `delegate_task` (clientRequestId suffix `-retry`). Never transcribe or repair a judge's answer yourself. If it fails twice, tell Pontus.
+If a file is missing or incomplete, relaunch that judge once with a fresh `delegate_task` (clientRequestId suffix `-retry`). Never transcribe or repair a judge's answer yourself, and never loosen the validator to accept it. If it fails twice, tell Pontus.
 
 ## Scoring
 
 - **Category mean:** for each judge and category, the mean over the current round's images, read off with the key. Keep the minimum as well, to find weak screens, but the target uses means.
 - **Reference mean:** the same judge's mean for the references in the same round.
-- **Noise:** the largest round-to-round move so far in a judge's reference mean for any category. Use 0.3 until two rounds exist. A judge's scores have moved only when the move is bigger than this.
+- **Gap:** category mean minus reference mean, per judge and category, in the same round. A judge's mood moves both sides, so the gap is steadier than either mean. The relative target is a gap of at least the margin.
+- **Progress:** a judge **backs** a round when it prefers the current image in more than half of the changed pairs. This is the signal the plateau rule uses. A single screen improving barely moves a mean over 20 shots, but it does win its pair.
+- **Noise:** for each judge, the median over categories of the round-to-round move in its reference means, averaged over the rounds so far. Use 0.3 until two rounds exist. A mean or gap has moved only when the move is bigger than this.
 - **Drift:** a reference mean moving by more than the noise is drift. The relative target is immune to it. In absolute mode, a round whose reference means moved more than 0.5 from calibration doesn't count toward "reached". Report it alongside the round's scores.
 - **Round table:** posted after every round, in the step 3 update.
 
@@ -76,7 +81,7 @@ If a file is missing or incomplete, relaunch that judge once with a fresh `deleg
   |---|---|---|---|---|
 
   Under the table, list:
-  - each judge's pairwise wins against the previous round;
-  - the change from the previous round;
-  - drift;
-  - judges that haven't run yet because of staging.
+  - each judge's picks on the changed pairs, and whether it backs the round;
+  - each judge's gap change from the previous round, and the noise;
+  - each judge's distance to the target: the largest shortfall and its category;
+  - drift.
