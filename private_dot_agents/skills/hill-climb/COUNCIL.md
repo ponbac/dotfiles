@@ -19,7 +19,7 @@ Run both judges every round. With one judge alone, the other's gap stays hidden 
 
 ## Shot list
 
-Fix the shot list in step 1 with Pontus. Choose 16–24 key shots: the screens that matter most to him, the states they have (populated, empty, error), light and dark, phone and desktop. A longer **full list** is optional, and it is shot only for calibration and the confirmation round. Shoot every entry with `capture`, in the same order, at the same size, with the same data.
+Fix the shot list in step 1 with Pontus. Choose 16–24 key shots: the screens that matter most to him, the states they have (populated, empty, error), light and dark, phone and desktop. A longer **full list** is optional, and it is shot only for calibration and the confirmation round. Shoot every entry with `capture`, in the same order, at the same size, with the same data. Never scale shots down: judges read scaled text as smaller than it is and ask for bigger type. If an image must be smaller, crop it.
 
 To build `capture`, see the `run` skill for starting the app, and use `agent-browser`, the T3 `preview_*` tools or `rea capture_web_screenshot` to take the shots. Starting the app inside the command means a dev server dying between rounds can't break a capture.
 
@@ -37,8 +37,8 @@ Log the source and crop of each one in `references/SOURCES.md`. Changing the ref
 
 For each round, build `packets/<round>/` by copying images under neutral names:
 
-- each fixed shot that **changed** since the previous round as two images, the previous round and the current round, labelled `A` and `B` with a fresh coin flip per shot (`S01-A`, `S01-B`). In round 1 the previous round is the base. Comparing with the previous round catches regressions; comparing with the base stops telling you anything after a round or two.
-- each **unchanged** shot (pixel-identical to the previous round, checked by comparing the files) as one image (`S02`). A pair of identical images only adds noise.
+- each fixed shot that **visibly changed** since the previous round as two images, the previous round's scored image and the current one, labelled `A` and `B` with a fresh coin flip per shot (`S01-A`, `S01-B`). In round 1 the previous round is the base. Comparing with the previous round catches regressions; comparing with the base stops telling you anything after a round or two.
+- each **unchanged** shot as one image (`S02`). A shot is unchanged when its pixel diff against the previous round is only anti-aliasing or a few pixels (under 0.1% of pixels, e.g. with ImageMagick `compare -metric AE`). Near-identical pairs only make judges flip coins.
 - each reference under a neutral name such as `R01`.
 
 Keep the key (which label is which) only in `STATE.md`. Calibration packets hold the base shots and the references, with no pairs.
@@ -71,9 +71,11 @@ If a file is missing or incomplete, relaunch that judge once with a fresh `deleg
 
 - **Category mean:** for each judge and category, the mean over the current round's images, read off with the key. Keep the minimum as well, to find weak screens, but the target uses means.
 - **Reference mean:** the same judge's mean for the references in the same round.
-- **Gap:** category mean minus reference mean, per judge and category, in the same round. A judge's mood moves both sides, so the gap is steadier than either mean. The relative target is a gap of at least the margin.
-- **Progress:** a judge **backs** a round when it prefers the current image in more than half of the changed pairs. This is the signal the plateau rule uses. A single screen improving barely moves a mean over 20 shots, but it does win its pair.
-- **Noise:** for each judge, the median over categories of the round-to-round move in its reference means, averaged over the rounds so far. Use 0.3 until two rounds exist. A mean or gap has moved only when the move is bigger than this.
+- **Gap:** category mean minus reference mean, per judge and category, in the same round. A judge's mood moves both sides, so the gap is steadier than either mean.
+- **Average gap:** the mean of a judge's gaps over the last 3 rounds (fewer early on). Rescoring alone swings a single round's gap by most of a point, so the target test uses this, never one round.
+- **Distance:** each judge's largest shortfall of the average gap (or 3-round average mean, in absolute mode) from the target, and its category.
+- **Progress:** a judge **backs** a round when it prefers the current image in more than half of the changed pairs. A single screen improving barely moves a mean over 20 shots, but it does win its pair. With fewer than 5 changed pairs, the picks are a **weak signal**: say so in the round table.
+- **Noise:** for each judge, the median over categories of the round-to-round move in its mean for every image that didn't change that round (unchanged shots and references), averaged over the rounds so far. Use 0.3 until two rounds exist. A mean, gap or distance has moved only when the move is bigger than this.
 - **Drift:** a reference mean moving by more than the noise is drift. The relative target is immune to it. In absolute mode, a round whose reference means moved more than 0.5 from calibration doesn't count toward "reached". Report it alongside the round's scores.
 - **Round table:** posted after every round, in the step 3 update.
 
@@ -81,7 +83,7 @@ If a file is missing or incomplete, relaunch that judge once with a fresh `deleg
   |---|---|---|---|---|
 
   Under the table, list:
-  - each judge's picks on the changed pairs, and whether it backs the round;
+  - each judge's picks on the changed pairs, whether it backs the round, and whether the signal is weak;
   - each judge's gap change from the previous round, and the noise;
-  - each judge's distance to the target: the largest shortfall and its category;
+  - each judge's distance to the target, and its change over the last 3 rounds;
   - drift.
