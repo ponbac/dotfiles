@@ -14,7 +14,7 @@ Done when the eval runs with one command and every collected failure is a case.
 
 ## Noise
 
-Before climbing, run the eval 3 times on the base branch and record the spread in `STATE.md`. Score each round as the median of 3 runs. A change counts as better only when it beats the previous median by more than the spread.
+Before climbing, run the eval 3 times on the base branch and record the spread in `STATE.md`. That spread is the eval's **noise**. Score each round as the median of 3 runs. A change counts as better only when it beats the previous median by more than the spread.
 
 ## Order
 

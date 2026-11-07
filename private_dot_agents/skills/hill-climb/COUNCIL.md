@@ -1,56 +1,82 @@
 # Council
 
-Three judges score screenshots. Scores are vibes and drift between runs, so every rule here exists to keep them **blind** and **calibrated**.
+Two judges score screenshots. Scores are vibes and drift between runs, so every rule here exists to keep them **blind** and **calibrated**.
 
 ## Judges
 
 | Judge | `delegate_task` target |
 | --- | --- |
-| Opus | `{providerInstanceId:"claudeAgent", model:"claude-opus-5-5", options:{effort:"high"}}` |
 | Sol | `{providerInstanceId:"codex", model:"gpt-6.1-sol", options:{reasoningEffort:"high"}}` |
-| Grok | `{providerInstanceId:"cursor", model:"grok-4.7", options:{reasoning_effort:"high", fastMode:false}}` |
+| Opus | `{providerInstanceId:"claudeAgent", model:"claude-opus-5-5", options:{effort:"high"}}` |
 
 Check the IDs with `orchestrator_capabilities` once per climb. If a judge is unavailable, stop and tell Pontus rather than swapping in another model.
 
 Delegate and wait as in `second-opinion` steps 2 and 3. Use `role: "review"`, `mode: "async"`, the title `Hill climb <slug> r<N>: <judge>` and the clientRequestId `<slug>-hc-r<N>-<judge>`. Every round is a **new** `delegate_task` for every judge. Never send a judge a follow-up in an existing thread.
 
-**Staging.** Run Sol alone until Sol meets the target. From then on, run all three every round. Staging rounds count toward the budget.
+**Calibration (round 0).** Both judges score the base shots and the references. Their scales differ: in practice, Opus scores well below Sol. So the target is set per judge, from this round.
+
+**Staging.** From round 1, run Sol alone until Sol meets the target, then run both judges every round. The confirmation round always uses both. Staging rounds count toward the budget.
 
 ## Shot list
 
-Fix the shot list in step 1. It covers every view the climb touches, in light and dark mode, at desktop and narrow width, with each state the views have (empty, populated, error). Shoot every entry every round, in the same order, at the same size, with the same data.
+Fix the shot list in step 1 with Pontus. Choose 16–24 key shots: the screens that matter most to him, the states they have (populated, empty, error), light and dark, phone and desktop. A longer **full list** is optional, and it is shot only for calibration and the confirmation round. Shoot every entry with `capture`, in the same order, at the same size, with the same data.
 
-To capture, run the app (`run` skill), then use `agent-browser`, the T3 `preview_*` tools or `rea capture_web_screenshot`.
+To build `capture`, see the `run` skill for starting the app, and use `agent-browser`, the T3 `preview_*` tools or `rea capture_web_screenshot` to take the shots. Starting the app inside the command means a dev server dying between rounds can't break a capture.
 
-**Controls.** Pontus may provide reference screenshots, such as competitor apps or a design he likes. They are fixed files, and every round re-scores them unchanged. A control whose score moves more than 0.5 from its round-1 score marks the round **noisy**. On a noisy round, report the climb's scores relative to the controls and do not count the round toward "reached".
+## References
+
+References are fixed images of apps Pontus admires, scored unchanged every round. They give the scores a scale and catch drift. Each one is:
+
+- a real in-app screen from a current version, such as an App Store or vendor capture cropped to the app screen. Not a promo illustration, help-page image or old design;
+- full resolution, roughly the size of our shots;
+- for a job our app does, such as set logging, a dashboard or a history list.
+
+Log the source and crop of each one in `references/SOURCES.md`. Changing the references needs Pontus's approval and restarts calibration.
 
 ## Packet
 
 For each round, build `packets/<round>/` by copying images under neutral names:
 
-- each fixed shot as two images, the base branch and the current branch, labelled `A` and `B` with a fresh coin flip per shot;
-- each control under a neutral name such as `R1`.
+- each fixed shot as two images, the **previous round** and the current round, labelled `A` and `B` with a fresh coin flip per shot. In round 1 the previous round is the base. Comparing with the previous round catches regressions; comparing with the base stops telling you anything after a round or two.
+- each reference under a neutral name such as `R01`.
 
-Keep the key (which label is which) only in `STATE.md`.
+Keep the key (which label is which) only in `STATE.md`. Calibration packets hold the base shots and the references, with no pairs.
 
 ## Judge brief
 
 Send this every round with only the paths filled in, and nothing else:
 
-> You are reviewing the visual design of a desktop app's UI. The images are in `<packet path>`; look only there.
+> You are reviewing the visual design of an app's UI. The images are in `<packet path>`; look only there.
 > For each shot pair, say which of A or B is better designed and why, in one line.
-> Then score every image 1–10 on each category below, with a one-line reason per score: typography, hierarchy, spacing & density, colour & contrast, iconography, consistency & polish, clarity, character (does it have colour and a personality of its own, rather than generic grey), and overall.
-> Finish with the three changes that would most improve the weaker image of each pair.
-> This is read-only: change no files.
+> Score every image, including each `R` image, 1–10 on each category below, with a one-line reason per score: typography, hierarchy, spacing & density, colour & contrast, iconography, consistency & polish, clarity, character (does it have colour and a personality of its own, rather than generic grey), and overall.
+> For each pair, give the three changes that would most improve the weaker image.
+> Write your answer as JSON to `<score file path>`, exactly in this shape, then reply with only that path:
+> `{"pairs":[{"shot":"S01","better":"A","reason":"…"}],"scores":[{"image":"S01-A","typography":{"score":8,"reason":"…"}, …one entry per category…}],"fixes":[{"shot":"S01","changes":["…","…","…"]}]}`
+> Change no files other than the score file.
 
-The brief never names the target, the round number, earlier scores, which image is new, what changed or that this is a climb. Pontus's taste notes guide your changes. They stay out of the brief.
+The brief never names the target, the round number, earlier scores, which image is newer, what changed or that this is a climb. Pontus's taste notes guide your changes. They stay out of the brief.
+
+**Validate** each score file as it arrives:
+
+- it parses;
+- every pair has a verdict;
+- every image, references included, has all nine categories as whole numbers from 1 to 10.
+
+If a file is missing or incomplete, relaunch that judge once with a fresh `delegate_task` (clientRequestId suffix `-retry`). Never transcribe or repair a judge's answer yourself. If it fails twice, tell Pontus.
 
 ## Scoring
 
-- A judge's score for the climb is its score for the current-branch images in each category, read off with the key.
-- A row on the scoreboard holds:
-  - each judge's per-category scores;
-  - each judge's pairwise wins for the current branch;
-  - the control scores;
-  - a noisy flag.
-- "Reached" means every judge scores every category at or above the target, and no round counted toward it was noisy.
+- **Category mean:** for each judge and category, the mean over the current round's images, read off with the key. Keep the minimum as well, to find weak screens, but the target uses means.
+- **Reference mean:** the same judge's mean for the references in the same round.
+- **Noise:** the largest round-to-round move so far in a judge's reference mean for any category. Use 0.3 until two rounds exist. A judge's scores have moved only when the move is bigger than this.
+- **Drift:** a reference mean moving by more than the noise is drift. The relative target is immune to it. In absolute mode, a round whose reference means moved more than 0.5 from calibration doesn't count toward "reached". Report it alongside the round's scores.
+- **Round table:** posted after every round, in the step 3 update.
+
+  | Category | Sol: ours (mean / min) | Sol: refs | Opus: ours (mean / min) | Opus: refs |
+  |---|---|---|---|---|
+
+  Under the table, list:
+  - each judge's pairwise wins against the previous round;
+  - the change from the previous round;
+  - drift;
+  - judges that haven't run yet because of staging.
