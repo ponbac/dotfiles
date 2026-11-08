@@ -110,6 +110,8 @@ Write for a reviewer who understands the product but has not followed the task. 
 
 Add other sections (for example, review findings or follow-up work) only when relevant and supported by the task. Do not copy all sections from a larger example PR by default. Avoid empty headings, filler, and repeated explanations. Review media belongs in a separate comment as described in step 7.
 
+The description describes the change, not how the session went: no run history, retries, killed or flaky runs, review-round narrative, or CI logs. Whenever you edit a PR description later (after review fixes, a rebase, or in `babysit`), rewrite it against this guidance so it describes the current diff. Never append a log.
+
 ## Guardrails
 
 - Never move an existing bookmark on another change, rename/switch away from a Git worktree branch, push to a non-`origin` or `upstream` remote, create a PR from a local fork without confirming the target repository, or create a non-draft PR without explicit user approval.

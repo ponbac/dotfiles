@@ -43,6 +43,8 @@ For each round, build `packets/<round>/` by copying images under neutral names:
 
 Keep the key (which label is which) only in `STATE.md`. Calibration packets hold the base shots and the references, with no pairs.
 
+Never point a judge at `packets/<round>/` itself: its parent holds `STATE.md`, the key, the scores and the other rounds. For each judge, copy the packet's images into a fresh directory of its own outside the climb state (`mktemp -d /tmp/hc-packet-XXXXXX`), and give the score file path as `<that directory>/score.json`. When the file arrives, copy it to `scores/<round>/<judge>.json`, then delete the directory.
+
 ## Judge brief
 
 Send this every round with only the paths filled in, and nothing else:
@@ -53,7 +55,7 @@ Send this every round with only the paths filled in, and nothing else:
 > For each `S` screen, give the three changes that would most improve it. For a pair, improve the weaker image.
 > Write your answer as JSON to `<score file path>`, exactly in this shape, then reply with only that path:
 > `{"pairs":[{"shot":"S01","better":"A","reason":"…"}],"scores":[{"image":"S01-A","typography":{"score":8,"reason":"…"}, …one entry per key…}],"fixes":[{"shot":"S01","changes":["…","…","…"]}]}`
-> Change no files other than the score file.
+> Change no files other than the score file. Put any helper files (diffs, crops, scripts) in a temporary directory outside `<packet path>`.
 
 For calibration, which has no pairs, send the same brief without the first sentence about pairs and the pairs line, and with `"pairs":[]` in the shape.
 
