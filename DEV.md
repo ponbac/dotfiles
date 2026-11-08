@@ -4,12 +4,14 @@
 mise on all three hosts. `95-coding-agents.toml` and nonmutating launchers now
 manage only those agents, including OpenCode v2. Background self-updaters are
 disabled. Old global declarations and duplicate installers were removed after
-verification. Non-agent runtimes and trust remain host-owned. The original audit
-and initial deferral below are retained as historical context; README describes
-the current setup.
+verification. A later user-approved change makes Bun and .NET shared `latest`
+defaults with daily update checks, merging only those keys into host globals.
+Other runtimes and trust remain host-owned. The original audit and initial
+deferral below are historical context; README describes the current setup.
 
-**REA addition:** all three hosts also install pinned `npm:rea-agents` 6.4.0 from
-`99-rea.toml`. Chezmoi now allows Executor + REA in the global MCP policies;
+**REA addition:** all three hosts track `npm:rea-agents` at `latest` with daily
+update checks in `99-rea.toml` (the initial 6.4.0 pin is retired).
+Chezmoi now allows Executor + REA in the global MCP policies;
 REA's skill-only setup owns the excluded shared/Claude skill trees. This is a
 JavaScript/Electron-first installation, with no optional native engines or
 runtime replacement. See README's REA section for validation, repair and rollback.

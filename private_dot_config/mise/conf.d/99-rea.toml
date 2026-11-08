@@ -1,5 +1,6 @@
-# Pin the first Electron-analysis rollout; upgrade deliberately after validation.
+# Track stable REA releases and reconcile their matching generated skills.
 # Chezmoi owns MCP registrations; REA owns only its generated skill trees.
 [tools."npm:rea-agents"]
-version = "6.4.0"
+version = "latest"
+auto_update = "24h"
 postinstall = 'python3 "$HOME/.local/share/chezmoi/tools/install-rea-skills.py" "$MISE_TOOL_INSTALL_PATH"'

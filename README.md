@@ -99,8 +99,9 @@ Bring those edits back and review them before using SSH deployment.
   The retired `pi-mcp-adapter` is not installed. Executor uses native HTTP bearer
   headers with `${EXECUTOR_MCP_TOKEN}` and direct tool exposure; the token stays local.
 - Shared mise manifests and nonmutating launchers for Pi, Codex, Claude, OpenCode v2
-  and Herdr. These tools, Plannotator and agent-browser follow stable `latest`
-  releases with daily mise auto-update checks. Host-owned runtimes do not opt in.
+  and Herdr. These tools, Plannotator, agent-browser and REA follow stable `latest`
+  releases with daily mise auto-update checks. Bun and .NET also opt in through a
+  selected-key merge of each host's global mise config; other runtimes stay local.
   User-level Herdr takes precedence over Omarchy's package without modifying it.
 - Plannotator follows `latest` in `97-plannotator.toml`. Its mise tool-level
   postinstall runs the official installer from that exact release tag, with
@@ -166,7 +167,7 @@ bash ~/.local/share/chezmoi/tools/bootstrap-agents.sh
 ```
 
 Run this on each host after changing Pi package pins, or pass `--bootstrap` to
-the deployment command. It refreshes all seven shared tools' release caches and
+the deployment command. It refreshes the shared tools' and Bun/.NET release caches and
 upgrades them to latest, ensures the shared mise tools are
 installed, reshims, installs current bundled Herdr integrations, and
 reconciles the exact versions declared in Pi settings. It also retires the stale desktop-only Pi
@@ -178,7 +179,8 @@ All three machines use mise as the active update owner for these tools:
 - `~/.config/mise/conf.d/95-coding-agents.toml` declares Pi, Codex and Claude via
   mise's binary backends, and OpenCode **v2** via `npm:@opencode/cli`.
 - `90-agent-release-policy.toml` exempts these tools from release-age delays.
-- All seven tool versions are `latest`, with `auto_update = "24h"`. Each
+- All ten opted-in tools (the seven original tools plus REA, Bun and .NET) use
+  `latest`, with `auto_update = "24h"`. Each
   sync/bootstrap also explicitly checks current releases; versions can drift
   between machines until their next check. Plain `dotpush` publishes only source.
   Global/runtime-wide auto-update remains disabled.
@@ -190,8 +192,13 @@ All three machines use mise as the active update owner for these tools:
 - `~/.local/bin/{pi,codex,claude,opencode}` delegates to `mise exec` without
   writing globals, triggering `mise use`, or overriding age policy on launch.
 
-Omarchy still owns shell/PATH activation. Unrelated global tool declarations,
-Node/.NET/system runtimes, project overrides and trust paths remain host-local.
+Omarchy still owns shell/PATH activation. Chezmoi merges only Bun and .NET's
+`version = "latest"` and `auto_update = "24h"` into `~/.config/mise/config.toml`,
+replacing their old exact pins while preserving other tool options and settings.
+Unrelated global tools, Node/system runtimes, project overrides and trust paths
+remain host-local. Project-specific runtime pins still take precedence. Existing
+processes are never restarted and old runtime versions are retained for rollback.
+Validate this merge with `python3 -B -m unittest discover -s tools -p 'test_mise_runtime_policy.py' -v`.
 The old agent entries were removed from host globals/legacy conf.d files after
 verification. Duplicate Node-global/npm-global installs, old OpenCode v1
 binaries and the active native Claude install on dev-1 were removed. Recovery
@@ -245,9 +252,9 @@ Shims/`mise exec` check the invoked opted-in tool; an activated shell checks in
 the background at prompts. These are activity-driven, not an unconditional timer.
 Exact pins and project overrides do not advance. Release-age policy still applies.
 
-All three hosts now run mise 2026.10.7. Daily checks are enabled individually for
-Pi, Codex, Claude, OpenCode, agent-browser, Herdr and Plannotator. We do not enable
-`tool_update.global_auto`: Node/.NET and other host-owned runtimes remain untouched.
+Daily checks are enabled individually for Pi, Codex, Claude, OpenCode,
+agent-browser, Herdr, Plannotator, REA, Bun and .NET. We do not enable
+`tool_update.global_auto`: Node and other unlisted host-owned runtimes remain untouched.
 Explicit sync/bootstrap updates still run, regardless of the daily check interval.
 Herdr refreshes bundled integrations after an installation; Plannotator runs its
 version-matched official installer and installs the matching Pi extension. These
@@ -318,10 +325,10 @@ Validation: `python3 -B -m unittest discover -s tools -p 'test_desktop_package_m
 
 ## REA: JavaScript and Electron reverse engineering
 
-All three hosts install `npm:rea-agents` **6.4.0** through mise's shared
-`99-rea.toml`. Unlike the seven latest-tracking tools above, REA is deliberately
-pinned for this initial rollout; it does not auto-update. `~/.local/bin/rea`
-delegates to mise, and all four agents launch that absolute wrapper as a local
+All three hosts track stable `npm:rea-agents` **latest** through mise's shared
+`99-rea.toml`, with daily auto-update checks and explicit sync/bootstrap upgrades.
+The initial 6.4.0 rollout pin has been retired. `~/.local/bin/rea` delegates to
+mise, and all four agents launch that absolute wrapper as a local
 stdio MCP server alongside Executor. No remote analysis service is configured.
 
 Chezmoi owns the MCP registrations. REA owns only its version-matched generated
@@ -376,8 +383,11 @@ attach to a live authenticated app without reviewing the scope first. Browser
 interaction automation remains agent-browser's responsibility. Native `.node`
 add-ons may warrant separately installing a native engine later.
 
-Upgrade by editing the pin in `99-rea.toml`, validating, then publishing/deploying.
-To roll back, restore the previous pin and shared policies, sync, and review the
+Updates run through mise; each installation reconciles only its version-matched
+skills via the existing guarded postinstall. Running MCP servers keep their loaded
+version until agents are restarted at an idle point. REA retains the default
+release-age policy, like agent-browser. To roll back, set an exact version and
+remove `auto_update` in `99-rea.toml`, sync, and review the
 recovery manifests before restoring old skill trees or removing newly created
 ones. An older binary alone does not restore skills or configuration.
 

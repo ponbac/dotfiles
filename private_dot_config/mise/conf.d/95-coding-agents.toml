@@ -1,5 +1,5 @@
 # One mise-managed installation per coding agent on every machine.
-# Non-agent runtimes and Omarchy's shell/PATH integration remain host-owned.
+# Bun/.NET policy is merged separately; other runtimes and shell/PATH stay local.
 # mise owns updates; prevent application background updaters from making a
 # second installation outside mise. Explicit manual commands remain available.
 [env]

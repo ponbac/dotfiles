@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Run AFTER applying chezmoi. Upgrade all shared agent tools and reconcile
 # matching Plannotator, pinned Pi packages and Herdr integrations; stage desktop T3
-# nightly on Omarchy hosts. Do not change other runtimes, OAuth, or project trust.
+# nightly on Omarchy hosts. Bun/.NET also track latest; leave other runtimes,
+# OAuth and project trust untouched.
 # Herdr owns generated integrations, not chezmoi.
 set -euo pipefail
 case "$(hostname)" in omarchy|omarchy-laptop|dev-1) ;; *) echo 'Unknown host' >&2; exit 1;; esac
@@ -19,6 +20,10 @@ if [[ -e "$HOME/.vite-plus/bin" || -L "$HOME/.vite-plus/bin" ]]; then
   mv "$HOME/.vite-plus/bin" "$backup/bin"
   printf 'Vite+ launcher recovery backup: %s\n' "$backup"
 fi
+# Refresh the opted-in runtimes; preserve old installs for running processes.
+mise cache clear bun dotnet
+mise upgrade --global --yes --no-prune bun dotnet
+mise install bun dotnet
 # Refresh coding-agent caches; preserve old installs for running agents.
 mise cache clear pi codex claude npm:@opencode/cli github:herdrdev/herdr github:backnotprop/plannotator
 mise upgrade --global --yes --no-prune pi codex claude npm:@opencode/cli github:herdrdev/herdr
@@ -29,8 +34,9 @@ mise install pi codex claude npm:@opencode/cli github:herdrdev/herdr
 # Browser automation deliberately retains only the current version.
 bash "$tools_dir/bootstrap-agent-browser.sh"
 mise install github:backnotprop/plannotator
-# REA is deliberately pinned; install without upgrading it or host runtimes.
-# Its setup is skill-only: chezmoi already applied the shared MCP registrations.
+# REA follows latest; its setup remains skill-only, never MCP registration.
+mise cache clear npm:rea-agents
+mise upgrade --global --yes --no-prune npm:rea-agents
 mise install npm:rea-agents
 python3 "$tools_dir/install-rea-skills.py" "$(mise where npm:rea-agents)"
 mise reshim
