@@ -33,6 +33,7 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
    - the round budget, 6 unless Pontus says otherwise;
    - the regression gate: the tests, typecheck and lint commands that must stay green;
    - Pontus's taste notes and priorities, in his words;
+   - the **leak list** (council): words and phrases a judge could only know from the repo, taken from the taste notes and the repo's design docs (COUNCIL.md, Validate);
    - where round updates go: this thread, or Gon through Executor.
 
    Ask for anything missing. Done when every field is filled in and a test capture looks right.
@@ -47,7 +48,14 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
 
    Done when row 0 is on the scoreboard and the target definition names the mode, the number and what is averaged.
 3. **Climb.** Each round:
-   1. Make one coherent batch of changes aimed at the judges' or the eval's top complaints. Make it big enough to show above the noise: favour complaints both judges share or that repeat across screens. When the gap is the app's overall look rather than single defects ("generic grey", "no personality"), change it app-wide (colour, type, icons, shared components), not one screen at a time. Before acting on a complaint, check it against the pixels or the code. Log claims that don't hold in `STATE.md`, and skip them. Check complaints about content below the fold in the running app, since the shots may not show it. When a judge asks to undo something it asked for earlier, keep the current version and log the reversal. When judges keep flagging the test data, check whether it looks like production. If it doesn't, fixing it is part of step 1 (tell Pontus, since it changes the artefact). If it does, log the complaint once as a known artefact and skip it in later rounds.
+   1. Make one coherent batch of changes aimed at the judges' or the eval's top complaints. Make it big enough to show above the noise. When the gap is the app's overall look rather than single defects ("generic grey", "no personality"), change it app-wide (colour, type, icons, shared components), not one screen at a time. Follow the repo's agent instructions (AGENTS.md) as for any other change.
+
+      For the council, act only on complaints that survive the **filter**. A complaint survives when:
+      - it holds against the pixels, or against the running app for content below the fold. Log claims that don't hold in `STATE.md`;
+      - both judges share it, or it is a defect you can point to in the pixels: clipped or overlapping text, misalignment, low contrast. A taste call from one judge doesn't survive, however many screens it repeats on;
+      - it is not a **reversal**: a judge asking to undo something it asked for earlier in this climb. Keep the current version and log the reversal. A reversal removes only that judge's vote; the other judge's view still counts on its own;
+      - it is not contradicted by the other judge;
+      - it is not about test data. When judges keep flagging the test data, check whether it looks like production. If it doesn't, fixing it is part of step 1 (tell Pontus, since it changes the artefact). If it does, log the complaint once as a known artefact and skip it in later rounds.
    2. Run the regression gate.
    3. Capture the round.
    4. For the council, do a **regression review** yourself: compare the previous round against this one, shot by shot, and check every item on the must-keep list. Then look at every key shot, and each change at every viewport in the shot list, for what judges miss: clipped or overflowing text, controls that crowd or cover each other, elements in odd places, and awkward or unclear copy (judges read the UI's language poorly). Fix what you find, recapture, then score.
@@ -57,17 +65,17 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
    Keep one round in judging at a time. You may prepare the next batch, but capture it only after the scores are in. Changes made between rounds, Pontus's requests included, join the next round's batch, so they get judged; the previous round's images stay as they were scored. While only judges are running, post one status line and end the turn; their completion wakes the thread. Don't run a climb under `/goal`: its Stop hook keeps restarting the turn while judges run. Work in a worktree on a PR branch. Done for the round when the gate is green, the row is written and the update is posted.
 4. **Stop.** Stop on the first of these, and record the reason:
    - **Reached:**
-     - Council: the target as defined in step 2 holds on the 3-round averages, then a confirmation round with fresh judges and the full shot list keeps it holding once that round is included in the averages.
+     - Council: the target as defined in step 2 holds on the 3-round averages, then a confirmation round with fresh judges keeps it holding once that round is included in the averages. If there is a full list, the confirmation round also shows no regression on it (COUNCIL.md).
      - Eval: the target holds for two consecutive rounds, then 3 further runs also pass.
    - **Plateau:** any of these:
      - for two consecutive rounds, no judge backed the round (Progress in COUNCIL.md). Weak-signal rounds don't count;
-     - for three consecutive rounds, no judge reached a new best distance to the target (by more than its noise), even if the rounds were backed;
+     - for three consecutive rounds, no judge reached a new best distance to the target (by more than its noise), even if the rounds were backed. Use each judge's current noise for every round, earlier ones included;
      - for two rounds, the eval median didn't beat the previous one by more than its noise (EVAL.md).
-   - **Exhausted** (council): no complaint survives the filter for a batch. A complaint survives when it holds against the pixels or the app, both judges share it or it repeats across screens, and it is not a reversal, a test-data artefact, or contradicted by the other judge.
+   - **Exhausted** (council): no complaint survives the filter (step 3.1) for a batch.
    - **Budget:** the round budget is spent.
 
-   On plateau, exhaustion or budget, tell Pontus how far from the target each judge is and what the references score. Say whether the top remaining complaints contradict the other judge or the same judge's earlier requests. If most do, the judges have run out of shared direction and more rounds will flip back and forth. Pontus decides whether to extend, retarget or end the climb.
-5. **Report.** Open a draft PR with `commit-and-push` and include the scoreboard in its body. Give Pontus:
+   On plateau, exhaustion or budget, tell Pontus how far from the target each judge is, its average progress per round over the climb, how many more rounds the target would take at that rate, and what the references score. Say whether the top remaining complaints contradict the other judge or the same judge's earlier requests. If most do, the judges have run out of shared direction and more rounds will flip back and forth. Pontus decides whether to extend, retarget or end the climb.
+5. **Report.** First get the whole climb's diff reviewed with `review-loop`, and fix what it finds: the gate and the screenshots miss behaviour bugs, such as a value that no longer shows or a button that acts on the wrong item. Then open a draft PR with `commit-and-push` and include the scoreboard in its body. Give Pontus:
    - the stop reason;
    - the scoreboard;
    - each judge's open complaints;
