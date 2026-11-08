@@ -27,7 +27,8 @@ class MiseRuntimePolicyTests(unittest.TestCase):
                 before = (f'[tools]\nbun = {bun}\ndotnet = {dotnet}\nnode = "24"\n'
                           '[tool_alias]\ndotnet = "asdf:dotnet"\npython = "core:python"\n'
                           '[settings]\ntrusted_config_paths = ["/host/project"]\n'
-                          '[settings.tool_update]\nglobal_auto = false\n')
+                          '[settings.tool_update]\nglobal_auto = false\n'
+                          '[settings.dotnet]\nisolated = false\ncli_telemetry_optout = true\n')
                 after_text = self.render(before)
                 after = tomllib.loads(after_text)
                 original = tomllib.loads(before)
@@ -38,6 +39,8 @@ class MiseRuntimePolicyTests(unittest.TestCase):
                     self.assertEqual(after['tools']['bun']['install_env'], {'LOCAL': 'keep'})
                 self.assertEqual(after['tool_alias'], {'dotnet': 'core:dotnet', 'python': 'core:python'})
                 self.assertEqual(after['tools']['node'], original['tools']['node'])
+                self.assertIs(after['settings']['dotnet']['isolated'], True)
+                original['settings']['dotnet']['isolated'] = True
                 self.assertEqual(after['settings'], original['settings'])
                 self.assertEqual(self.render(after_text), after_text)
 
@@ -45,10 +48,12 @@ class MiseRuntimePolicyTests(unittest.TestCase):
         expected = {'version': 'latest', 'auto_update': '24h'}
         self.assertEqual(tomllib.loads(self.render('')),
                          {'tools': {'bun': expected, 'dotnet': expected},
-                          'tool_alias': {'dotnet': 'core:dotnet'}})
+                          'tool_alias': {'dotnet': 'core:dotnet'},
+                          'settings': {'dotnet': {'isolated': True}}})
         current = ('# host comment\n[tool_alias]\ndotnet = "core:dotnet"\n[tools]\n'
                    'dotnet = {auto_update="24h", version="latest"}\n'
-                   'bun = {version="latest", auto_update="24h"}\n')
+                   'bun = {version="latest", auto_update="24h"}\n'
+                   '[settings.dotnet]\nisolated = true\n')
         self.assertEqual(self.render(current), current)
 
 

@@ -197,8 +197,12 @@ Omarchy still owns shell/PATH activation. Chezmoi merges Bun and .NET's
 replacing their old exact pins while preserving other tool options and settings.
 It also selects `tool_alias.dotnet = "core:dotnet"`: the legacy asdf plugin's
 release list stopped at 10.0.400 while Microsoft's current SDK was 10.0.403.
-Mise's built-in installer avoids that stale list; the old plugin and installed
-SDKs are not removed. See [backend selection](https://mise.jdx.dev/core-tools.html#selecting-another-implementation).
+Mise's built-in installer avoids that stale list. `settings.dotnet.isolated = true`
+keeps SDKs per-version, matching the old plugin's layout, and prevents a stale
+inherited `DOTNET_ROOT` from overriding the selected SDK. Existing shared-root
+installs/symlinks remain where they are; the old plugin and SDKs are not removed.
+See [backend selection](https://mise.jdx.dev/core-tools.html#selecting-another-implementation)
+and [.NET install modes](https://mise.jdx.dev/lang/dotnet.html#isolated-mode).
 Unrelated global tools, Node/system runtimes, project overrides and trust paths
 remain host-local. Project-specific runtime pins still take precedence. Existing
 processes are never restarted and old runtime versions are retained for rollback.
