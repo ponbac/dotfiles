@@ -25,6 +25,7 @@ class MiseRuntimePolicyTests(unittest.TestCase):
         ):
             with self.subTest(bun=bun, dotnet=dotnet):
                 before = (f'[tools]\nbun = {bun}\ndotnet = {dotnet}\nnode = "24"\n'
+                          '[tool_alias]\ndotnet = "asdf:dotnet"\npython = "core:python"\n'
                           '[settings]\ntrusted_config_paths = ["/host/project"]\n'
                           '[settings.tool_update]\nglobal_auto = false\n')
                 after_text = self.render(before)
@@ -35,6 +36,7 @@ class MiseRuntimePolicyTests(unittest.TestCase):
                     self.assertEqual(after['tools'][tool]['auto_update'], '24h')
                 if isinstance(original['tools']['bun'], dict):
                     self.assertEqual(after['tools']['bun']['install_env'], {'LOCAL': 'keep'})
+                self.assertEqual(after['tool_alias'], {'dotnet': 'core:dotnet', 'python': 'core:python'})
                 self.assertEqual(after['tools']['node'], original['tools']['node'])
                 self.assertEqual(after['settings'], original['settings'])
                 self.assertEqual(self.render(after_text), after_text)
@@ -42,8 +44,9 @@ class MiseRuntimePolicyTests(unittest.TestCase):
     def test_fresh_config_and_already_current_format(self):
         expected = {'version': 'latest', 'auto_update': '24h'}
         self.assertEqual(tomllib.loads(self.render('')),
-                         {'tools': {'bun': expected, 'dotnet': expected}})
-        current = ('# host comment\n[tools]\n'
+                         {'tools': {'bun': expected, 'dotnet': expected},
+                          'tool_alias': {'dotnet': 'core:dotnet'}})
+        current = ('# host comment\n[tool_alias]\ndotnet = "core:dotnet"\n[tools]\n'
                    'dotnet = {auto_update="24h", version="latest"}\n'
                    'bun = {version="latest", auto_update="24h"}\n')
         self.assertEqual(self.render(current), current)

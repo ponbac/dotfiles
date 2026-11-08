@@ -1,6 +1,6 @@
 {{- /* chezmoi:modify-template */ -}}
 {{- $current := dict -}}
 {{- if .chezmoi.stdin -}}{{- $current = fromToml .chezmoi.stdin -}}{{- end -}}
-{{- /* Own only Bun/.NET update policy; preserve other tools, settings and trust. */ -}}
-{{- $policy := dict "tools" (dict "bun" (dict "version" "latest" "auto_update" "24h") "dotnet" (dict "version" "latest" "auto_update" "24h")) -}}
+{{- /* Own Bun/.NET updates and the built-in .NET backend; preserve other host policy. */ -}}
+{{- $policy := dict "tools" (dict "bun" (dict "version" "latest" "auto_update" "24h") "dotnet" (dict "version" "latest" "auto_update" "24h")) "tool_alias" (dict "dotnet" "core:dotnet") -}}
 {{- includeTemplate "agents/keep-format" (dict "stdin" .chezmoi.stdin "value" (mergeOverwrite $current $policy) "format" "toml") -}}

@@ -192,9 +192,13 @@ All three machines use mise as the active update owner for these tools:
 - `~/.local/bin/{pi,codex,claude,opencode}` delegates to `mise exec` without
   writing globals, triggering `mise use`, or overriding age policy on launch.
 
-Omarchy still owns shell/PATH activation. Chezmoi merges only Bun and .NET's
+Omarchy still owns shell/PATH activation. Chezmoi merges Bun and .NET's
 `version = "latest"` and `auto_update = "24h"` into `~/.config/mise/config.toml`,
 replacing their old exact pins while preserving other tool options and settings.
+It also selects `tool_alias.dotnet = "core:dotnet"`: the legacy asdf plugin's
+release list stopped at 10.0.400 while Microsoft's current SDK was 10.0.403.
+Mise's built-in installer avoids that stale list; the old plugin and installed
+SDKs are not removed. See [backend selection](https://mise.jdx.dev/core-tools.html#selecting-another-implementation).
 Unrelated global tools, Node/system runtimes, project overrides and trust paths
 remain host-local. Project-specific runtime pins still take precedence. Existing
 processes are never restarted and old runtime versions are retained for rollback.
