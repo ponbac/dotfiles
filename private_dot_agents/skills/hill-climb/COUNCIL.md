@@ -37,19 +37,21 @@ Log the source and crop of each one in `references/SOURCES.md`. Changing the ref
 
 For each round, build `packets/<round>/` by copying images under neutral names:
 
-- each fixed shot that **visibly changed** since the previous round as two images, the previous round's scored image and the current one, labelled `A` and `B` with a fresh coin flip per shot (`S01-A`, `S01-B`). In round 1 the previous round is the base. Comparing with the previous round catches regressions; comparing with the base stops telling you anything after a round or two.
-- each **unchanged** shot as one image (`S02`). A shot is unchanged when nothing in the batch touched it and its pixel diff against the previous round is only rendering noise (under 0.1% of pixels, e.g. with ImageMagick `compare -metric AE`). Near-identical pairs only make judges flip coins. A shot the batch deliberately changed, a copy edit for example, is a pair however small its diff.
+- each fixed shot that **changed** since the previous round as two images, the previous round's scored image and the current one, labelled `A` and `B` with a fresh coin flip per shot (`S01-A`, `S01-B`). In round 1 the previous round is the base. Comparing with the previous round catches regressions; comparing with the base stops telling you anything after a round or two.
+- each **unchanged** shot as one image (`S02`). A shot has changed when one of the batch's changes is visible in it, however small, a copy edit for example. Otherwise it is unchanged: nothing in it differs, its pixel diff against the previous round is only rendering noise (under 0.1% of pixels, e.g. with ImageMagick `compare -metric AE`), or its content only moved a few pixels because of a change elsewhere. Near-identical pairs only make judges flip coins.
 - each reference under a neutral name such as `R01`.
 
 Keep the key (which label is which) only in `STATE.md`. Calibration packets hold the base shots and the references, with no pairs.
+
+A judge session takes at most 34 images; judges given more stop short. When a round has more, split it into **parts** of at most 34 images, each with every reference and with a pair's two images in the same part. Send each part to each judge as its own `delegate_task` (clientRequestId suffix `-p<N>`), validate and retry each part on its own, then merge a judge's parts before scoring. A reference's score is its mean over the parts.
 
 Never point a judge at `packets/<round>/` itself: its parent holds `STATE.md`, the key, the scores and the other rounds. For each judge, copy the packet's images into a fresh directory of its own outside the climb state (`mktemp -d /tmp/hc-packet-XXXXXX`), and give the score file path as `<that directory>/score.json`. When the file arrives, copy it to `scores/<round>/<judge>.json`, then delete the directory.
 
 ## Judge brief
 
-Send this every round with only the paths filled in, and nothing else:
+Send this every round with only the paths and the file list filled in, and nothing else. Judges can't list the folder, so the brief names every image file in it:
 
-> You are reviewing the visual design of an app's UI. The images are in `<packet path>`. Judge only what the images show: don't open other files or run commands, and write only the score file. Images named `S<nn>-A` and `S<nn>-B` are two versions of the same screen.
+> You are reviewing the visual design of an app's UI. The images are these files in `<packet path>`: `<every file name in the packet>`. Judge only what the images show: open no other files, run no commands, and write only the score file. Images named `S<nn>-A` and `S<nn>-B` are two versions of the same screen.
 > For each such pair, say which of A or B is better designed and why, in one line.
 > Score every image, including each `R` image, 1–10 on each category below, with a one-line reason per score. Use exactly these JSON keys: `typography`, `hierarchy`, `spacing_density`, `colour_contrast`, `iconography`, `consistency_polish`, `clarity`, `character` (does it have colour and a personality of its own, rather than generic grey), and `overall`.
 > For each `S` screen, give the three changes that would most improve it. For a pair, improve the weaker image.
@@ -76,7 +78,7 @@ If a file is missing, incomplete or leaks, relaunch that judge once with a fresh
 - **Gap:** category mean minus reference mean, per judge and category, in the same round. A judge's mood moves both sides, so the gap is steadier than either mean.
 - **Average gap:** the mean of a judge's gaps over the last 3 rounds (fewer early on). Rescoring alone swings a single round's gap by most of a point, so the target test uses this, never one round.
 - **Distance:** each judge's largest shortfall of the average gap (or 3-round average mean, in absolute mode) from the target, and its category.
-- **Progress:** a judge **backs** a round when it prefers the current image in more than half of the changed pairs. Leave out a pick whose reason doesn't hold against the pixels, such as praise for something only the other image has. A single screen improving barely moves a mean over 20 shots, but it does win its pair. With fewer than 5 changed pairs, the picks are a **weak signal**: say so in the round table.
+- **Progress:** a judge **backs** a round when it prefers the current image in more than half of the changed pairs. Leave out a pick whose reason doesn't hold against the pixels, such as praise for something only the other image has. Every other pick counts, including one where a judge changed its mind. A single screen improving barely moves a mean over 20 shots, but it does win its pair. With fewer than 5 changed pairs, the picks are a **weak signal**: say so in the round table.
 - **Noise:** for each judge, the median over categories of the round-to-round move in its mean for every image that didn't change that round (unchanged shots and references), averaged over the rounds so far. Use 0.3 until two rounds exist. A mean, gap or distance has moved only when the move is bigger than this.
 - **Drift:** a reference mean moving by more than the noise is drift. The relative target is immune to it. In absolute mode, a round whose reference means moved more than 0.5 from calibration doesn't count toward "reached". Report it alongside the round's scores.
 - **Round table:** posted after every round, in the step 3 update.

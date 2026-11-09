@@ -33,7 +33,8 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
    - the round budget, 6 unless Pontus says otherwise;
    - the regression gate: the tests, typecheck and lint commands that must stay green;
    - Pontus's taste notes and priorities, in his words;
-   - the **leak list** (council): words and phrases a judge could only know from the repo, taken from the taste notes and the repo's design docs (COUNCIL.md, Validate);
+   - the **scope**: the screens and parts of the UI the climb may change, such as the UI a set of PRs added. The whole app unless Pontus says otherwise;
+   - the **leak list** (council): phrases a judge could only know from the repo, taken from the taste notes and the repo's design docs (COUNCIL.md, Validate). Leave out anything the shots show, such as theme names and screen titles, and ordinary words of the app's domain;
    - where round updates go: this thread, or Gon through Executor.
 
    Ask for anything missing. Done when every field is filled in and a test capture looks right.
@@ -44,16 +45,17 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
       - **Relative** (council default): every judge's average gap (COUNCIL.md) for every category is at least a margin. The margin is 0 unless Pontus picks another: beat the references. Reference drift can't move this target, because both sides are scored in the same round.
       - **Absolute:** every judge's 3-round average mean for every category is at least N. Point out how close the references come to N. If the reference apps don't reach it, it's probably out of reach.
 
-      For each proposed target, show the gain each judge needs in its furthest category. If any judge needs more than about 1 point, say it's unlikely within the budget, and offer a smaller margin, more rounds, or a bigger redesign first.
+      For each proposed target, show the gain each judge needs in its furthest category. If any judge needs more than about 1 point, say it's unlikely within the budget, and offer a smaller margin, more rounds, or a bigger redesign first. If a judge's complaints in its furthest category are mostly about UI outside the scope, say so: that part of the gap can't close in this climb.
 
    Done when row 0 is on the scoreboard and the target definition names the mode, the number and what is averaged.
 3. **Climb.** Each round:
    1. Make one coherent batch of changes aimed at the judges' or the eval's top complaints. Make it big enough to show above the noise. When the gap is the app's overall look rather than single defects ("generic grey", "no personality"), change it app-wide (colour, type, icons, shared components), not one screen at a time. Follow the repo's agent instructions (AGENTS.md) as for any other change.
 
       For the council, act only on complaints that survive the **filter**. A complaint survives when:
+      - it is within the scope;
       - it holds against the pixels, or against the running app for content below the fold. Log claims that don't hold in `STATE.md`;
       - both judges share it, or it is a defect you can point to in the pixels: clipped or overlapping text, misalignment, low contrast. A taste call from one judge doesn't survive, however many screens it repeats on;
-      - it is not a **reversal**: a judge asking to undo something it asked for earlier in this climb. Keep the current version and log the reversal. A reversal removes only that judge's vote; the other judge's view still counts on its own;
+      - it is not a **reversal**: a judge asking to undo something it asked for earlier in this climb. Keep the current version and log the reversal. A reversal removes only that judge's complaint; the other judge's view still counts on its own. Reversals concern complaints, not pair picks (COUNCIL.md, Progress);
       - it is not contradicted by the other judge;
       - it is not about test data. When judges keep flagging the test data, check whether it looks like production. If it doesn't, fixing it is part of step 1 (tell Pontus, since it changes the artefact). If it does, log the complaint once as a known artefact and skip it in later rounds.
    2. Run the regression gate.
@@ -62,7 +64,7 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
    5. Score the round and append the row to the scoreboard.
    6. Post the round update in this thread, and also to Gon if that was chosen: the round table from COUNCIL.md (or the eval score and its spread), what changed, and annotated screenshots of the changes, with arrows and a one-line note per change. Post the images at full resolution, with desktop shots at their full width. Annotated images are for Pontus only. Judges get raw shots.
 
-   Keep one round in judging at a time. You may prepare the next batch, but capture it only after the scores are in. Changes made between rounds, Pontus's requests included, join the next round's batch, so they get judged; the previous round's images stay as they were scored. While only judges are running, post one status line and end the turn; their completion wakes the thread. Don't run a climb under `/goal`: its Stop hook keeps restarting the turn while judges run. Work in a worktree on a PR branch. Done for the round when the gate is green, the row is written and the update is posted.
+   Keep one round in judging at a time. You may prepare the next batch, but capture it only after the scores are in. Changes made between rounds, Pontus's requests included, join the next round's batch, so they get judged; the previous round's images stay as they were scored. While only judges are running, post one status line and end the turn; their completion wakes the thread. After posting a round update, go straight on to the next batch in the same turn. End the turn only while judges are running, or to wait for Pontus. Don't run a climb under `/goal`: its Stop hook keeps restarting the turn while judges run. Work in a worktree on a PR branch. Done for the round when the gate is green, the row is written and the update is posted.
 4. **Stop.** Stop on the first of these, and record the reason:
    - **Reached:**
      - Council: the target as defined in step 2 holds on the 3-round averages, then a confirmation round with fresh judges keeps it holding once that round is included in the averages. If there is a full list, the confirmation round also shows no regression on it (COUNCIL.md).
