@@ -32,9 +32,9 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
    - the **must-keep list**: content, order and behaviour that Pontus cares about and that judges might trade away, such as "recovery card first on Idag" or "set controls above the fold";
    - the round budget, 6 unless Pontus says otherwise;
    - the regression gate: the tests, typecheck and lint commands that must stay green;
-   - Pontus's taste notes and priorities, in his words;
+   - Pontus's taste notes and priorities, in his words. If the repo's design docs disagree with them, ask which wins. His notes win by default;
    - the **scope**: the screens and parts of the UI the climb may change, such as the UI a set of PRs added. The whole app unless Pontus says otherwise;
-   - the **leak list** (council): phrases a judge could only know from the repo, taken from the taste notes and the repo's design docs (COUNCIL.md, Validate). Leave out anything the shots show, such as theme names and screen titles, and ordinary words of the app's domain;
+   - the **leak list** (council): phrases that show a judge knows Pontus's taste or opened a repo file, taken from the taste notes and the repo's design docs (COUNCIL.md, Validate). Leave out anything the shots show, such as theme names and screen titles, ordinary words of the app's domain, and the plain wording of the instruction files every judge loads (AGENTS.md, CLAUDE.md). A rerun loads them too, so it is no blinder. If those files hold taste notes, tell Pontus that judges in this repo can't be blind to them;
    - where round updates go: this thread, or Gon through Executor.
 
    Ask for anything missing. Done when every field is filled in and a test capture looks right.
@@ -49,15 +49,17 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
 
    Done when row 0 is on the scoreboard and the target definition names the mode, the number and what is averaged.
 3. **Climb.** Each round:
-   1. Make one coherent batch of changes aimed at the judges' or the eval's top complaints. Make it big enough to show above the noise. When the gap is the app's overall look rather than single defects ("generic grey", "no personality"), change it app-wide (colour, type, icons, shared components), not one screen at a time. Follow the repo's agent instructions (AGENTS.md) as for any other change.
+   1. Make one coherent batch of changes aimed at the judges' or the eval's top complaints. Make it big enough to show above the noise. When the gap is the app's overall look rather than single defects ("generic grey", "no personality"), change it app-wide (colour, type, icons, shared components), not one screen at a time. Follow the repo's agent instructions (AGENTS.md) as for any other change, except where Pontus's taste notes override its design docs (step 1).
 
       For the council, act only on complaints that survive the **filter**. A complaint survives when:
       - it is within the scope;
       - it holds against the pixels, or against the running app for content below the fold. Log claims that don't hold in `STATE.md`;
-      - both judges share it, or it is a defect you can point to in the pixels: clipped or overlapping text, misalignment, low contrast. A taste call from one judge doesn't survive, however many screens it repeats on;
+      - both judges share it, or it is a **defect**: something broken you can point to in the pixels, such as clipped, cut-off or overlapping text, misalignment or unreadable contrast. Making two working elements match, or moving or restyling one, is a taste call. A taste call from one judge doesn't survive, however many screens it repeats on;
       - it is not a **reversal**: a judge asking to undo something it asked for earlier in this climb. Keep the current version and log the reversal. A reversal removes only that judge's complaint; the other judge's view still counts on its own. Reversals concern complaints, not pair picks (COUNCIL.md, Progress);
       - it is not contradicted by the other judge;
       - it is not about test data. When judges keep flagging the test data, check whether it looks like production. If it doesn't, fixing it is part of step 1 (tell Pontus, since it changes the artefact). If it does, log the complaint once as a known artefact and skip it in later rounds.
+
+      When both judges preferred the previous image of a pair in the last round, revert that change in this batch.
    2. Run the regression gate.
    3. Capture the round.
    4. For the council, do a **regression review** yourself: compare the previous round against this one, shot by shot, and check every item on the must-keep list. Then look at every key shot, and each change at every viewport in the shot list, for what judges miss: clipped or overflowing text, controls that crowd or cover each other, elements in odd places, and awkward or unclear copy (judges read the UI's language poorly). Fix what you find, recapture, then score.

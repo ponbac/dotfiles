@@ -11,7 +11,7 @@ Two judges score screenshots. Scores are vibes and drift between runs, so every 
 
 Check the IDs with `orchestrator_capabilities` once per climb. If a judge is unavailable, stop and tell Pontus rather than swapping in another model.
 
-Delegate and wait as in `second-opinion` steps 2 and 3. Use `role: "review"`, `mode: "async"`, the title `Hill climb <slug> r<N>: <judge>` and the clientRequestId `<slug>-hc-r<N>-<judge>`. Every round is a **new** `delegate_task` for every judge. Never send a judge a follow-up in an existing thread. Judges run in the climb's checkout, since T3 starts a local child only in the thread's project. There, the repo's agent instructions and docs can tell a judge Pontus's taste, so the brief keeps judges to the images and every score file gets a leak check (Validate).
+Delegate and wait as in `second-opinion` steps 2 and 3. Use `role: "review"`, `mode: "async"`, the title `Hill climb <slug> r<N>: <judge>` and the clientRequestId `<slug>-hc-r<N>-<judge>`. Every round is a **new** `delegate_task` for every judge. Never send a judge a follow-up in an existing thread. Judges run in the climb's checkout, since T3 starts a local child only in the thread's project. There, every judge loads the repo's agent instructions and could open its docs, so the brief keeps judges to the images and every score file gets a leak check (Validate). The check looks for taste knowledge and opened files, not for the instructions' plain wording, which every rerun loads too.
 
 **Calibration (round 0).** Both judges score the base shots and the references. Their scales differ: in practice, Opus scores well below Sol. So the target is set per judge, from this round.
 
@@ -67,7 +67,7 @@ The brief never names the target, the round number, earlier scores, which image 
 - it parses;
 - every pair has a verdict;
 - every image, references included, has all nine keys, spelled exactly as in the brief, each with a whole-number score from 1 to 10;
-- it doesn't **leak**: no reason uses a phrase from the leak list in `STATE.md`, or mentions a repo file, a commit, the owner or an earlier version of the screen.
+- it doesn't **leak**: no reason uses a phrase from the leak list in `STATE.md`, or names Pontus, a repo file, a commit or an earlier version of the screen.
 
 If a file is missing, incomplete or leaks, relaunch that judge once with a fresh `delegate_task` (clientRequestId suffix `-retry`). Never transcribe or repair a judge's answer yourself, and never loosen the validator to accept it. If it fails twice, tell Pontus.
 
