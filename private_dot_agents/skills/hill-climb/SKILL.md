@@ -28,7 +28,7 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
 1. **Define the hill.** Write the following into `STATE.md`:
    - the branch;
    - the artefact: the fixed shot list and the references (COUNCIL.md), or the eval command;
-   - the `capture` command (council): it starts the app, renders test data that looks like production, captures every shot and stops the app. Production-like means real images, clips and map tiles, not empty fallbacks. Run it twice on the base: the two sets of shots must match apart from rendering noise (COUNCIL.md, Packet). If they don't, make it repeatable, for example with fixed seeds and clocks, or by generating content once and rendering the saved copy every round. If that's impossible, tell Pontus before calibration and offer to score several captures per shot, since otherwise each round measures chance. Look at every shot before the baseline;
+   - the `capture` command (council): it starts the app, renders test data that looks like production, captures every shot and stops the app. Production-like means real images, clips and map tiles, not empty fallbacks. If shots can differ between runs, as with model-generated content, make them repeatable or tell Pontus before calibration. Run it once and look at every shot before the baseline;
    - the **must-keep list**: content, order and behaviour that Pontus cares about and that judges might trade away, such as "recovery card first on Idag" or "set controls above the fold";
    - the round budget, 6 unless Pontus says otherwise;
    - the regression gate: the tests, typecheck and lint commands that must stay green;
