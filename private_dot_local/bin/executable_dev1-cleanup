@@ -27,6 +27,11 @@
 # (7 days) are removed. Bun's install cache is kept (node_modules hardlink into it); only packages
 # no node_modules links to any more are removed.
 #
+# T3 worktrees live on an XFS + VDO volume mounted at ~/.t3/worktrees (2026-11-10). VDO
+# deduplicates and compresses, so its real free space differs from df: "free" is the tighter of /
+# and the VDO pool (unused physical space plus what autoextend can still grow into), and the
+# volume is trimmed after deletions so VDO sees them. Reading it needs /etc/sudoers.d/dev1-cleanup.
+#
 # Each section runs isolated: a failing section is logged and reported, later sections still run,
 # and the run exits 1. "Freed" is the measured change in free space; du sizes are apparent sizes
 # (hardlinked files free less than their du size).
@@ -50,7 +55,7 @@ for arg in "$@"; do
     --no-fetch) FETCH=0 ;;
     --emergency) EMERGENCY=1 ;;
     --guard) GUARD=1 ;;
-    -h|--help) sed -n '2,32p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,37p' "$0"; exit 0 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
@@ -78,19 +83,45 @@ IDLE_DAYS=3               # worktree build output is stripped after this many id
 OPEN_IDLE_DAYS=7          # worktrees whose threads are all this idle count as done, settled or not
 BUN_MANIFEST_DAYS=7       # bun registry manifests (*.npm) unused this long are removed
 DOCKER_BUILD_CACHE_MAX=5GB
+VDO_LV=dev1data/vpool                       # VDO pool behind the worktrees volume
+VDO_DEV=/dev/mapper/dev1data-worktrees      # the XFS volume mounted at $T3_WORKTREES
 
 mkdir -p "$STATE_DIR/reports"
 log() { printf '%s [%s] %s\n' "$(date -Is)" "$MODE" "$*" >>"$LOG"; }
-avail_kb() { df -k --output=avail / | awk 'NR==2 {print $1+0}'; }
 gib() { echo $(( $1 / 1048576 )); }
+
+# The worktrees volume, when mounted. Only these exact commands are allowed by the sudoers rule.
+VDO=0
+[ "$(findmnt -n -o SOURCE --mountpoint "$T3_WORKTREES" 2>/dev/null)" != "$VDO_DEV" ] || VDO=1
+vdo_lvs() { sudo -n /usr/sbin/lvs --noheadings --nosuffix --units k -o lv_size,data_percent,vg_free,vdo_saving_percent "$VDO_LV" 2>/dev/null; }
+vdo_free_kb() { vdo_lvs | awk 'NF>=3 {printf "%d\n", $1 * (100 - $2) / 100 + $3; ok=1} END {exit !ok}'; }
+vdo_line() {
+  vdo_lvs | awk 'NF>=4 {printf "%.1fG used of %.1fG physical (%.0f%% saved by dedup and compression), %.1fG more to grow into",
+    $1*$2/100/1048576, $1/1048576, $4, $3/1048576}'
+}
+vdo_trim() { [ "$VDO" = 1 ] || return 0; sudo -n /usr/sbin/fstrim "$T3_WORKTREES" 2>>"$LOG" || log "WARNING: fstrim $T3_WORKTREES failed"; }
+root_avail_kb() { df -k --output=avail / | awk 'NR==2 {print $1+0}'; }
+avail_kb() { # the tighter of / and the VDO pool
+  local r v
+  r=$(root_avail_kb)
+  if [ "$VDO" = 1 ]; then
+    if v=$(vdo_free_kb); then [ "$v" -ge "$r" ] || r=$v; else log "WARNING: cannot read VDO usage of $VDO_LV (sudoers rule?)"; fi
+  fi
+  echo "$r"
+}
+if [ "$VDO" = 0 ] && grep -qs "[[:space:]]${T3_WORKTREES}[[:space:]]" /etc/fstab; then
+  log "WARNING: $T3_WORKTREES is in /etc/fstab but not mounted"
+  echo "WARNING: $T3_WORKTREES is in /etc/fstab but not mounted" >&2
+fi
 
 # ------------------------------------------------------------------- guard mode
 if [ "$GUARD" = 1 ]; then
   MODE=guard
+  vdo_trim
   free=$(gib "$(avail_kb)")
   [ "$free" -lt "$GUARD_RUN_GIB" ] || exit 0
   if ! flock -n "$STATE_DIR/lock" true; then log "guard: ${free}GiB free, a cleanup is already running"; exit 0; fi
-  [ "$free" -ge "$GUARD_WARN_GIB" ] || { log "guard: WARNING only ${free}GiB free"; echo "WARNING: only ${free}GiB free on /" >&2; }
+  [ "$free" -ge "$GUARD_WARN_GIB" ] || { log "guard: WARNING only ${free}GiB free"; echo "WARNING: only ${free}GiB free (/ or the worktrees VDO pool)" >&2; }
   args=(--apply --count-settled)
   if [ "$free" -lt "$GUARD_EMERGENCY_GIB" ]; then
     args+=(--emergency)
@@ -114,7 +145,10 @@ REMOVED="$TMP/removed.md"; SKIPPED="$TMP/skipped.md"; NOTES="$TMP/notes.md"; FAI
 
 kb_of() { { du -sk "$@" 2>/dev/null || true; } | awk '{s+=$1} END {print s+0}'; }
 human() { numfmt --to=iec --suffix=B --format='%.1f' $(( $1 * 1024 )); }
-disk_line() { df -h --output=size,used,avail,pcent / | tail -1 | awk '{printf "%s used of %s (%s), %s free", $2, $1, $4, $3}'; }
+disk_line() {
+  df -h --output=size,used,avail,pcent / | tail -1 | awk '{printf "/: %s used of %s (%s), %s free", $2, $1, $4, $3}'
+  [ "$VDO" = 0 ] || printf '; worktrees VDO: %s' "$(vdo_line)"
+}
 md_cell() { printf '%s' "$1" | tr '\n|' ' /'; }
 first_line() { awk 'NR==1 {print; exit}'; }   # unlike head, never leaves a writer with EPIPE
 
@@ -142,6 +176,7 @@ add_skipped() { # kind, item, kb, reason
   printf '| %s | `%s` | %s | %s |\n' "$1" "$(md_cell "$2")" "$(human "$3")" "$(md_cell "$4")" >>"$SKIPPED"
 }
 
+VDO_SECTIONS="bun-cache t3-worktrees strip emergency-strip"
 # Runs one section in a subshell with errexit, so an unexpected failure ends only that section.
 run_section() { # name, function, args...
   local name=$1 rc before after; shift
@@ -150,6 +185,8 @@ run_section() { # name, function, args...
   ( set -eE; trap 'log "section $name: line $LINENO failed: $BASH_COMMAND"' ERR; "$@" )
   rc=$?
   set -e
+  # Sections that delete on the VDO volume: trim so VDO frees the blocks before measuring.
+  case " $VDO_SECTIONS " in *" $name "*) [ "$MODE" != apply ] || vdo_trim ;; esac
   after=$(avail_kb)
   printf '%s\t%s\n' "$name" "$(( after - before ))" >>"$TMP/section-df"
   if [ "$rc" -ne 0 ]; then printf '%s (exit %s)\n' "$name" "$rc" >>"$FAILED"; log "section $name failed (exit $rc)"; fi
@@ -212,7 +249,8 @@ section_caches() {
 # name/version symlinks they leave and manifests unused for BUN_MANIFEST_DAYS.
 BUN_CACHE="$HOME/.bun/install/cache"
 section_bun_cache() {
-  local c=$BUN_CACHE pkg users k kb=0 n=0 mkb=0 mn=0 f
+  local c pkg users k kb=0 n=0 mkb=0 mn=0 f
+  c=$(readlink -f "$BUN_CACHE")   # a symlink into the worktrees volume; /proc shows the real path
   [ -d "$c" ] || return 0
   users=$(users_now "$c")
   if [ -n "$users" ]; then

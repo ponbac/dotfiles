@@ -1,0 +1,3 @@
+# dev1-cleanup (user ponbac) reads the worktrees VDO pool's real usage and trims the volume.
+# Install: /etc/sudoers.d/dev1-cleanup (root:root 0440), check with `visudo -cf`.
+ponbac ALL=(root) NOPASSWD: /usr/sbin/lvs --noheadings --nosuffix --units k -o lv_size\,data_percent\,vg_free\,vdo_saving_percent dev1data/vpool, /usr/sbin/fstrim /home/ponbac/.t3/worktrees

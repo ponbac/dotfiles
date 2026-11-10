@@ -41,6 +41,20 @@ if [ -n "${DF_STATE:-}" ] && [[ " $* " != *" -h "* ]]; then echo Avail; cat "$DF
 exec /usr/bin/df "$@"
 ''',
     'mise': '#!/bin/bash\nexit 0\n',
+    # The worktrees VDO volume: mounted when $VDO_STATE is set. `lvs` prints that file
+    # ("size_kb used_pct vg_free_kb saving_pct"); `fstrim` is logged and may swap in $VDO_TRIM_STATE.
+    'findmnt': r'''#!/bin/bash
+if [ -n "${VDO_STATE:-}" ] && [[ " $* " == *" --mountpoint $HOME/.t3/worktrees "* ]]; then
+  echo /dev/mapper/dev1data-worktrees; exit 0
+fi
+exec /usr/bin/findmnt "$@"
+''',
+    'sudo': '#!/bin/bash\n[ "$1" = -n ] && shift\ncmd=$(basename "$1"); shift\nexec "$cmd" "$@"\n',
+    'lvs': '#!/bin/bash\ncat "$VDO_STATE"\n',
+    'fstrim': r'''#!/bin/bash
+echo "$*" >>"$HOME/fstrim.log"
+[ -z "${VDO_TRIM_STATE:-}" ] || cp "$VDO_TRIM_STATE" "$VDO_STATE"
+''',
 }
 
 SCHEMA = '''
@@ -273,6 +287,35 @@ class Dev1CleanupTests(unittest.TestCase):
                 if runs:
                     self.assertIn('(apply)', self.report.read_text())
 
+
+    def vdo_state(self, name, size_gib, used_pct, vg_free_gib, saving_pct=80):
+        path = self.home / name
+        path.write_text(f'  {size_gib * GIB_KB} {used_pct} {vg_free_gib * GIB_KB} {saving_pct}\n')
+        return str(path)
+
+    def test_guard_counts_the_worktrees_vdo_pool_and_trims_it_first(self):
+        # / has plenty of room; only the VDO pool's real free space decides.
+        cases = (('vdo roomy', self.vdo_state('roomy', 64, 20, 64), False, False),
+                 ('vdo low', self.vdo_state('low', 64, 50, 0), True, False),        # 32 GiB free
+                 ('vdo nearly full', self.vdo_state('full', 64, 90, 0), True, True))  # 6 GiB free
+        for case, state, runs, emergency in cases:
+            with self.subTest(case):
+                self.report.unlink(missing_ok=True)
+                (self.home / 'fstrim.log').unlink(missing_ok=True)
+                (self.home / '.local/state/dev1-cleanup/last-apply').unlink(missing_ok=True)
+                self.run_cleanup('--guard', DF_STATE=self.set_free_gib(100), VDO_STATE=state)
+                self.assertTrue((self.home / 'fstrim.log').exists(), 'guard trims before measuring')
+                self.assertEqual(self.report.exists(), runs)
+                if runs:
+                    self.assertIn(f'emergency={int(emergency)}', self.report.read_text())
+
+    def test_apply_trims_the_vdo_volume_after_deleting_and_reports_it(self):
+        state = self.vdo_state('state', 64, 30, 64)
+        self.apply(DF_STATE=self.set_free_gib(100), VDO_STATE=state,
+                   VDO_TRIM_STATE=self.vdo_state('after-trim', 64, 10, 64))
+        self.assertTrue((self.home / 'fstrim.log').read_text().strip())
+        report = self.report.read_text()
+        self.assertIn('worktrees VDO: 6.4G used of 64.0G physical', report)
 
 if __name__ == '__main__':
     unittest.main()

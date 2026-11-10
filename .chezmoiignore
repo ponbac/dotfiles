@@ -67,6 +67,7 @@ manifests
 .local/bin/dev1-cleanup
 .config/systemd/user/dev1-cleanup.*
 .config/systemd/user/dev1-diskguard.*
+.config/systemd/user/t3code.service.d/20-worktrees-mount.conf
 {{- end }}
 
 {{- if eq .chezmoi.hostname "omarchy" }}
