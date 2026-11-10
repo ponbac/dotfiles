@@ -11,7 +11,7 @@ Two judges score screenshots. Scores are vibes and drift between runs, so every 
 
 Check the IDs with `orchestrator_capabilities` once per climb. If a judge is unavailable, stop and tell Pontus rather than swapping in another model.
 
-Delegate and wait as in `second-opinion` steps 2 and 3. Use `role: "review"`, `mode: "async"`, the title `Hill climb <slug> r<N>: <judge>` and the clientRequestId `<slug>-hc-r<N>-<judge>`. Every round is a **new** `delegate_task` for every judge. Never send a judge a follow-up in an existing thread. Judges run in the climb's checkout, since T3 starts a local child only in the thread's project. There, every judge loads the repo's agent instructions and could open its docs, so the brief keeps judges to the images and every score file gets a leak check (Validate). The check looks for taste knowledge and opened files, not for the instructions' plain wording, which every rerun loads too.
+Delegate and wait as in `second-opinion` steps 2 and 3. Use `role: "review"`, `mode: "async"`, the title `Hill climb <slug> r<N>: <judge>` and the clientRequestId `<slug>-hc-r<N>-<judge>`. Every round is a **new** `delegate_task` for every judge. Never send a judge a follow-up in an existing thread. Judges run in the climb's checkout, since T3 starts a local child only in the thread's project. There, every judge loads the repo's agent instructions and could open its docs, so the brief keeps judges to the images. Knowing the repo's general context does little harm. What must never reach a judge is the climb's state (Validate).
 
 **Calibration (round 0).** Both judges score the base shots and the references. Their scales differ: in practice, Opus scores well below Sol. So the target is set per judge, from this round.
 
@@ -67,9 +67,12 @@ The brief never names the target, the round number, earlier scores, which image 
 - it parses;
 - every pair has a verdict;
 - every image, references included, has all nine keys, spelled exactly as in the brief, each with a whole-number score from 1 to 10;
-- it doesn't **leak**: no reason uses a phrase from the leak list in `STATE.md`, or names Pontus, a repo file, a commit or an earlier version of the screen.
+- the judge saw every image: no reason calls an image blank, cut off or unreadable when the file is complete;
+- it doesn't **leak** the climb's state: no reason shows the judge knew the target, earlier scores, the key or which image is newer.
 
-If a file is missing, incomplete or leaks, relaunch that judge once with a fresh `delegate_task` (clientRequestId suffix `-retry`). Never transcribe or repair a judge's answer yourself, and never loosen the validator to accept it. If it fails twice, tell Pontus.
+Note in the round table any other sign that a judge knew more than the images, such as a repo file it names, but don't rerun for it.
+
+If a file fails a check, relaunch that judge once with a fresh `delegate_task` (clientRequestId suffix `-retry`). Never transcribe or repair a judge's answer yourself, and never loosen the validator to accept it. If it fails twice, tell Pontus.
 
 ## Scoring
 
@@ -91,4 +94,4 @@ If a file is missing, incomplete or leaks, relaunch that judge once with a fresh
   - each judge's gap change from the previous round, and the noise;
   - each judge's distance to the target, and its best so far;
   - drift;
-  - blindness: clean, or which judge was rerun for a leak.
+  - blindness: clean, or what a judge knew beyond the images and whether it was rerun.

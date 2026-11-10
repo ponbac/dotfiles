@@ -28,13 +28,12 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
 1. **Define the hill.** Write the following into `STATE.md`:
    - the branch;
    - the artefact: the fixed shot list and the references (COUNCIL.md), or the eval command;
-   - the `capture` command (council): it starts the app, renders test data that looks like production, captures every shot and stops the app. Production-like means real images, clips and map tiles, not empty fallbacks. Run it once and look at every shot before the baseline;
+   - the `capture` command (council): it starts the app, renders test data that looks like production, captures every shot and stops the app. Production-like means real images, clips and map tiles, not empty fallbacks. Run it twice on the base: the two sets of shots must match apart from rendering noise (COUNCIL.md, Packet). If they don't, make it repeatable, for example with fixed seeds and clocks, or by generating content once and rendering the saved copy every round. If that's impossible, tell Pontus before calibration and offer to score several captures per shot, since otherwise each round measures chance. Look at every shot before the baseline;
    - the **must-keep list**: content, order and behaviour that Pontus cares about and that judges might trade away, such as "recovery card first on Idag" or "set controls above the fold";
    - the round budget, 6 unless Pontus says otherwise;
    - the regression gate: the tests, typecheck and lint commands that must stay green;
    - Pontus's taste notes and priorities, in his words. If the repo's design docs disagree with them, ask which wins. His notes win by default;
    - the **scope**: the screens and parts of the UI the climb may change, such as the UI a set of PRs added. The whole app unless Pontus says otherwise;
-   - the **leak list** (council): phrases that show a judge knows Pontus's taste or opened a repo file, taken from the taste notes and the repo's design docs (COUNCIL.md, Validate). Leave out anything the shots show, such as theme names and screen titles, ordinary words of the app's domain, and the plain wording of the instruction files every judge loads (AGENTS.md, CLAUDE.md). A rerun loads them too, so it is no blinder. If those files hold taste notes, tell Pontus that judges in this repo can't be blind to them;
    - where round updates go: this thread, or Gon through Executor.
 
    Ask for anything missing. Done when every field is filled in and a test capture looks right.
