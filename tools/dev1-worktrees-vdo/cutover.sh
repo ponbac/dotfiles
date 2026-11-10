@@ -47,11 +47,18 @@ sync_cmd() { # extra rsync flags...; worktrees content at the volume root, bun c
   rsync -aH --numeric-ids --delete --relative "$@" "$WT/./" "$BUNDIR/./cache" "$NEW/"
 }
 sample_worktrees() { find "$WT" -mindepth 3 -maxdepth 3 -name .git -type f -printf '%h\n' | sort | awk 'NR % 9 == 1' | head -10; }
-git_snapshot() { # out-file: porcelain status of the sample worktrees (read-only: no index refresh)
-  local wt
+git_snapshot() { # out-file: porcelain status of the sample worktrees
+  # Re-reads every tracked file through a throwaway copy of the index, so the result does not
+  # depend on cached stat data (which differs on a copy) and the real index is never touched.
+  # Without this, CRLF-converted files looked clean on ext4 and modified on the copy (2026-11-10).
+  local wt ti
   while IFS= read -r wt; do
     echo "== ${wt#"$WT/"}"
-    GIT_OPTIONAL_LOCKS=0 git -C "$wt" status --porcelain=v1 --untracked-files=all 2>&1 | sort
+    ti=$(mktemp)
+    cp "$(git -C "$wt" rev-parse --absolute-git-dir)/index" "$ti"
+    GIT_INDEX_FILE=$ti git -C "$wt" update-index -q --really-refresh >/dev/null 2>&1
+    GIT_INDEX_FILE=$ti GIT_OPTIONAL_LOCKS=0 git -C "$wt" status --porcelain=v1 --untracked-files=all 2>&1 | sort
+    rm -f "$ti"
   done <"$WORK/sample" >"$1"
 }
 
