@@ -635,15 +635,15 @@ T3 worktrees live on an XFS + VDO volume (deduplication + LZ4) mounted at `~/.t3
 since 2026-11-10: about 79 GiB of worktrees take about 13 GiB of real space. The setup is under
 `tools/dev1-worktrees-vdo/`:
 
-- Proxmox disk `scsi1` (128 GiB) → VG `dev1data`, VDO pool `vpool` (64 GiB physical, grows 20%
-  at 70% use via the `dev1-vdo` LVM profile in `/etc/lvm/profile/`) → XFS `worktrees` (400 GiB
+- Proxmox disk `scsi1` (160 GiB) → VG `dev1data`, VDO pool `vpool` (64 GiB physical, grows 20%
+  at 70% use via the `dev1-vdo` LVM profile in `/etc/lvm/profile/`) → XFS `worktrees` (500 GiB
   logical), mounted from `/etc/fstab` with `nofail`. The empty mount point underneath is
   immutable (`chattr +i`), and the `t3code.service` drop-in refuses to start T3 without the mount.
 - Bun's cache is `~/.t3/worktrees/.bun-cache` (`~/.bun/install/cache` is a symlink), so installs
   hardlink on the same filesystem.
 - `dev1-cleanup` counts the tighter of `/` and the VDO pool's real free space and trims the volume
   after deleting, through `/etc/sudoers.d/dev1-cleanup` (`sudoers-dev1-cleanup`).
-- VDO does not return deleted space to the Proxmox thin pool: count the whole 128 GiB disk as used.
+- VDO does not return deleted space to the Proxmox thin pool: count the whole 160 GiB disk as used.
 - `cutover.sh` is the one-shot migration that was used (kept for reference and its rollback steps).
 
 ## Ayaka and wallpapers
