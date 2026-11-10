@@ -73,6 +73,9 @@ if [ "$MODE" = --check ]; then
   exit 0
 fi
 
+# The cleanup timers were paused for the move; resume them whatever the outcome.
+trap 'systemctl --user start dev1-cleanup.timer dev1-diskguard.timer' EXIT
+
 # ------------------------------------------------------------------ wait for idle T3, stop it
 status "waiting for T3 to be idle"
 sleep 120   # let the launching agent finish its reply
