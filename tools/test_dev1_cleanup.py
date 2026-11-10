@@ -37,6 +37,7 @@ echo "Total reclaimed space: 0B"
 ''',
     # Free space comes from $DF_STATE (KB) when set; human-readable report lines use the real df.
     'df': r'''#!/bin/bash
+if [ -n "${DF_WT_STATE:-}" ] && [[ " $* " == *"/.t3/worktrees"* ]]; then echo Avail; cat "$DF_WT_STATE"; exit 0; fi
 if [ -n "${DF_STATE:-}" ] && [[ " $* " != *" -h "* ]]; then echo Avail; cat "$DF_STATE"; exit 0; fi
 exec /usr/bin/df "$@"
 ''',
@@ -298,12 +299,16 @@ class Dev1CleanupTests(unittest.TestCase):
         cases = (('vdo roomy', self.vdo_state('roomy', 64, 20, 64), False, False),
                  ('vdo low', self.vdo_state('low', 64, 50, 0), True, False),        # 32 GiB free
                  ('vdo nearly full', self.vdo_state('full', 64, 90, 0), True, True))  # 6 GiB free
-        for case, state, runs, emergency in cases:
+        wt_low = self.home / 'wt-df'
+        wt_low.write_text(f'{30 * GIB_KB}\n')
+        cases += (('worktrees filesystem full before VDO', self.vdo_state('roomy2', 64, 20, 64), True, False, str(wt_low)),)
+        cases = tuple(c if len(c) == 5 else c + ('',) for c in cases)
+        for case, state, runs, emergency, wt_df in cases:
             with self.subTest(case):
                 self.report.unlink(missing_ok=True)
                 (self.home / 'fstrim.log').unlink(missing_ok=True)
                 (self.home / '.local/state/dev1-cleanup/last-apply').unlink(missing_ok=True)
-                self.run_cleanup('--guard', DF_STATE=self.set_free_gib(100), VDO_STATE=state)
+                self.run_cleanup('--guard', DF_STATE=self.set_free_gib(100), VDO_STATE=state, DF_WT_STATE=wt_df)
                 self.assertTrue((self.home / 'fstrim.log').exists(), 'guard trims before measuring')
                 self.assertEqual(self.report.exists(), runs)
                 if runs:

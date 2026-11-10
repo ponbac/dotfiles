@@ -28,9 +28,9 @@
 # no node_modules links to any more are removed.
 #
 # T3 worktrees live on an XFS + VDO volume mounted at ~/.t3/worktrees (2026-11-10). VDO
-# deduplicates and compresses, so its real free space differs from df: "free" is the tighter of /
-# and the VDO pool (unused physical space plus what autoextend can still grow into), and the
-# volume is trimmed after deletions so VDO sees them. Reading it needs /etc/sudoers.d/dev1-cleanup.
+# deduplicates and compresses, so its real free space differs from df: "free" is the tightest of /,
+# the VDO pool (unused physical space plus what autoextend can still grow into) and the worktrees
+# filesystem's own df, and the volume is trimmed after deletions so VDO sees them. Reading it needs /etc/sudoers.d/dev1-cleanup.
 #
 # Each section runs isolated: a failing section is logged and reported, later sections still run,
 # and the run exits 1. "Freed" is the measured change in free space; du sizes are apparent sizes
@@ -101,11 +101,13 @@ vdo_line() {
 }
 vdo_trim() { [ "$VDO" = 1 ] || return 0; sudo -n /usr/sbin/fstrim "$T3_WORKTREES" 2>>"$LOG" || log "WARNING: fstrim $T3_WORKTREES failed"; }
 root_avail_kb() { df -k --output=avail / | awk 'NR==2 {print $1+0}'; }
-avail_kb() { # the tighter of / and the VDO pool
+avail_kb() { # the tightest of /, the VDO pool's real space and the worktrees filesystem's own size
   local r v
   r=$(root_avail_kb)
   if [ "$VDO" = 1 ]; then
     if v=$(vdo_free_kb); then [ "$v" -ge "$r" ] || r=$v; else log "WARNING: cannot read VDO usage of $VDO_LV (sudoers rule?)"; fi
+    v=$(df -k --output=avail "$T3_WORKTREES" | awk 'NR==2 {print $1+0}')
+    [ "$v" -ge "$r" ] || r=$v
   fi
   echo "$r"
 }
