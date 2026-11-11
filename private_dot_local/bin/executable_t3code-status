@@ -14,7 +14,8 @@ state}`:
 
 The groups and states mirror the status labels in the T3 Code sidebar, which
 counts Waiting threads in its Working shelf. Only top-level threads are
-listed, by their own status; a subagent's pending request counts for its root
+listed, by their own status; subagents and threads delegated from another
+machine are left out, though a subagent's pending request counts for its root
 thread. A thread appears in one group only, and settled or snoozed threads
 are left out of `done` the way the sidebar hides them.
 
@@ -91,8 +92,13 @@ PROJECT_COLORS = {
 
 ROOT_THREAD = "coalesce(json_extract(t.payload_json, '$.lineage.rootThreadId'), t.thread_id)"
 LIVE_THREAD = "t.archived_at is null and t.deleted_at is null"
-# The sidebar lists top-level threads; a finished subagent reports to its parent.
-TOP_LEVEL = "json_extract(t.payload_json, '$.lineage.parentThreadId') is null"
+# The sidebar lists top-level threads only. A subagent reports to its parent,
+# and a thread delegated from another machine sits under the thread that
+# delegated it, so neither is listed on its own.
+TOP_LEVEL = (
+  "json_extract(t.payload_json, '$.lineage.parentThreadId') is null"
+  " and json_extract(t.payload_json, '$.delegatedFrom') is null"
+)
 
 NEEDS_YOU_SQL = f"""
   select {ROOT_THREAD} as root, min(q.created_at)
