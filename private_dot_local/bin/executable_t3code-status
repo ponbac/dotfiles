@@ -2,15 +2,21 @@
 """Report T3 Code thread status for the ponbac.t3code Omarchy bar widget.
 
 Reads this machine's T3 Code server state read-only and reports three groups,
-each a list of `{title, since, project, badge, badgeColor, provider, model}`:
+each a list of `{title, since, project, badge, badgeColor, provider, model,
+state}`:
 
-  needsYou  threads blocked on a pending approval or question
-  working   threads with a run in progress
+  needsYou  threads blocked on a pending approval or question, then snoozed
+            threads that woke up since they were last opened (state "woke")
+  working   threads with a run in progress, then threads whose run ended but
+            that still wait on background work, such as a watched pull
+            request or a delegated thread (state "waiting")
   done      threads whose latest run completed after they were last opened
 
-The groups mirror the status pill in the T3 Code sidebar. Subagent threads
-count as their root thread, a thread appears in one group only, and settled
-or snoozed threads are left out of `done` the way the sidebar hides them.
+The groups and states mirror the status labels in the T3 Code sidebar, which
+counts Waiting threads in its Working shelf. Only top-level threads are
+listed, by their own status; a subagent's pending request counts for its root
+thread. A thread appears in one group only, and settled or snoozed threads
+are left out of `done` the way the sidebar hides them.
 
 Modes:
   (none)    print this machine's record once
@@ -55,7 +61,23 @@ PEER_POLL_SECONDS = 4.0
 PEER_TIMEOUT_SECONDS = 3.0
 SERVE_CACHE_SECONDS = 1.0
 
-ITEM_KEYS = ("title", "since", "project", "badge", "badgeColor", "provider", "model")
+ITEM_KEYS = ("title", "since", "project", "badge", "badgeColor", "provider", "model", "state")
+
+# Background work that holds a finished run open, as T3 Code decides it
+# (orchestrationV2PendingBackgroundWork.ts). Plain commands and monitors do not
+# hold it unless the agent awaits them; a watched pull request is an awaited
+# monitor.
+HOLDING_TASK_KINDS = ("subagent", "background_task")
+# Run statuses after which background work can hold a thread in Waiting.
+SETTLED_RUN_STATUSES = ("cancelled", "completed", "failed", "interrupted", "waiting")
+LIVE_ITEM_STATUSES = ("pending", "running", "waiting")
+# Turn items that run in the background; a live command is never a holding kind.
+HOLDING_ITEM_TYPES = ("dynamic_tool", "subagent")
+# Item types that count as the run's own work when deciding whether a running
+# thread is only blocked on a wait for another thread.
+EXECUTION_ITEM_TYPES = (
+  "command_execution", "dynamic_tool", "subagent", "file_change", "file_search", "web_search", "compaction",
+)
 
 # T3 Code's project icon colours, in its order (the generated colour is an
 # index into this list), as the Tailwind 400 shades its dark theme uses.
@@ -69,6 +91,8 @@ PROJECT_COLORS = {
 
 ROOT_THREAD = "coalesce(json_extract(t.payload_json, '$.lineage.rootThreadId'), t.thread_id)"
 LIVE_THREAD = "t.archived_at is null and t.deleted_at is null"
+# The sidebar lists top-level threads; a finished subagent reports to its parent.
+TOP_LEVEL = "json_extract(t.payload_json, '$.lineage.parentThreadId') is null"
 
 NEEDS_YOU_SQL = f"""
   select {ROOT_THREAD} as root, min(q.created_at)
@@ -86,7 +110,7 @@ NEEDS_YOU_SQL = f"""
 # queued run only stands in when the thread has no run actually going.
 WORKING_SQL = f"""
   with act as (
-    select r.thread_id,
+    select r.thread_id, r.run_id, r.status,
            coalesce(json_extract(r.payload_json, '$.workStartedAt'),
                     json_extract(r.payload_json, '$.startedAt'),
                     r.requested_at) as started,
@@ -97,11 +121,77 @@ WORKING_SQL = f"""
     from orchestration_v2_projection_runs r
     where r.status in ({",".join("?" * len(ACTIVE_RUN_STATUSES))})
   )
-  select {ROOT_THREAD} as root, min(a.started)
+  select t.thread_id, a.started, a.run_id, a.status
   from act a
   join orchestration_v2_projection_threads t using (thread_id)
-  where a.n = 1 and {LIVE_THREAD}
-  group by root
+  where a.n = 1 and {TOP_LEVEL} and {LIVE_THREAD}
+"""
+
+# The execution items still going in each running run; a run whose only such
+# items are waits on other threads shows as Waiting, not Working.
+RUN_ITEMS_SQL = f"""
+  select i.run_id, i.type, json_extract(i.payload_json, '$.toolName'),
+         json_extract(i.payload_json, '$.input.mode'), json_extract(i.payload_json, '$.origin')
+  from orchestration_v2_projection_turn_items i
+  where i.run_id in (select value from json_each(?))
+    and i.status in ('running', 'waiting')
+    and i.type in ({",".join("?" * len(EXECUTION_ITEM_TYPES))})
+"""
+
+# Each top-level thread's latest run, for threads that could be holding
+# background work: a provider thread with pending tasks, a live background
+# item, or a pull request link with a watch.
+LATEST_RUN_SQL = f"""
+  with latest as (
+    select thread_id, status, completed_at,
+           row_number() over (partition by thread_id order by ordinal desc) as n
+    from orchestration_v2_projection_runs
+  )
+  select t.thread_id, t.active_provider_thread_id, json_extract(t.payload_json, '$.pullRequests'),
+         l.status, l.completed_at
+  from orchestration_v2_projection_threads t
+  left join latest l on l.thread_id = t.thread_id and l.n = 1
+  where {TOP_LEVEL} and {LIVE_THREAD}
+    and (
+      t.thread_id in (
+        select thread_id from orchestration_v2_projection_provider_threads
+        where json_array_length(json_extract(payload_json, '$.pendingBackgroundTasks')) > 0
+      )
+      or t.thread_id in (
+        select thread_id from orchestration_v2_projection_turn_items
+        where status in ({",".join("?" * len(LIVE_ITEM_STATUSES))})
+          and type in ({",".join("?" * len(HOLDING_ITEM_TYPES))})
+      )
+      or t.payload_json like '%"watch"%'
+    )
+"""
+
+PROVIDER_TASKS_SQL = """
+  select provider_thread_id, json_extract(payload_json, '$.pendingBackgroundTasks')
+  from orchestration_v2_projection_provider_threads
+  where thread_id = ? and json_array_length(json_extract(payload_json, '$.pendingBackgroundTasks')) > 0
+"""
+
+LIVE_ITEMS_SQL = f"""
+  select i.type, json_extract(i.payload_json, '$.input.persistent'), r.status
+  from orchestration_v2_projection_turn_items i
+  left join orchestration_v2_projection_runs r on r.run_id = i.run_id
+  where i.thread_id = ?
+    and i.status in ({",".join("?" * len(LIVE_ITEM_STATUSES))})
+    and i.type in ({",".join("?" * len(HOLDING_ITEM_TYPES))})
+"""
+
+# Snoozed threads whose snooze ran out after they were last opened: the
+# sidebar's Woke label. A thread that wakes because it needs the user is
+# already in needsYou.
+WOKE_SQL = f"""
+  select t.thread_id, json_extract(t.payload_json, '$.snoozedUntil') as woke
+  from orchestration_v2_projection_threads t
+  where woke is not null
+    and woke <= ?
+    and woke > coalesce(json_extract(t.payload_json, '$.lastVisitedAt'), '')
+    and coalesce(json_extract(t.payload_json, '$.settledOverride'), '') != 'settled'
+    and {TOP_LEVEL} and {LIVE_THREAD}
 """
 
 # Top-level threads only: a finished subagent reports to its parent, not the user.
@@ -117,7 +207,7 @@ DONE_SQL = f"""
   where l.n = 1
     and l.status = 'completed'
     and l.completed_at > json_extract(t.payload_json, '$.lastVisitedAt')
-    and json_extract(t.payload_json, '$.lineage.parentThreadId') is null
+    and {TOP_LEVEL}
     and coalesce(json_extract(t.payload_json, '$.settledOverride'), '') != 'settled'
     and not (
       coalesce(json_extract(t.payload_json, '$.snoozedUntil'), '') > ?
@@ -179,9 +269,64 @@ def project_badge(name: str, icon_json: str | None) -> tuple[str, str]:
   return text, PROJECT_COLORS[color]
 
 
-def group(db: sqlite3.Connection, since_by_thread: dict[str, str], newest_first: bool) -> list[dict[str, str]]:
+def is_thread_wait(tool_name: str | None, mode: str | None) -> bool:
+  """A T3 tool call that only waits on another thread: t3_thread_wait, or delegate_task in wait mode."""
+  tool = (tool_name or "").rsplit("__", 1)[-1]
+  return tool == "t3_thread_wait" or (tool == "delegate_task" and mode == "wait")
+
+
+def blocked_on_thread_wait(db: sqlite3.Connection, running_runs: list[str]) -> set[str]:
+  """Running runs whose only live execution items are waits on other threads."""
+  if not running_runs:
+    return set()
+  waits: set[str] = set()
+  busy: set[str] = set()
+  rows = db.execute(RUN_ITEMS_SQL, (json.dumps(running_runs), *EXECUTION_ITEM_TYPES))
+  for run_id, item_type, tool_name, mode, origin in rows:
+    if item_type == "subagent" and origin == "app_owned":
+      continue
+    if item_type == "dynamic_tool" and is_thread_wait(tool_name, mode):
+      waits.add(run_id)
+    else:
+      busy.add(run_id)
+  return waits - busy
+
+
+def holds_background_work(db: sqlite3.Connection, thread_id: str, active_provider: str | None,
+                          pull_requests: str | None, latest_status: str | None) -> bool:
+  """Whether a thread whose run has ended still waits on background work."""
+  for link in json_list(pull_requests):
+    snapshot = link.get("snapshot") if isinstance(link.get("snapshot"), dict) else {}
+    if link.get("watch") is not None and link.get("source") != "stack-dismissed" and snapshot.get("state") != "merged":
+      return True
+  if latest_status not in SETTLED_RUN_STATUSES or latest_status == "failed":
+    return False
+  for provider_thread, tasks in db.execute(PROVIDER_TASKS_SQL, (thread_id,)):
+    if active_provider and provider_thread != active_provider:
+      continue
+    for task in json_list(tasks):
+      if task.get("awaited") is True or task.get("kind") in HOLDING_TASK_KINDS:
+        return True
+  rows = db.execute(LIVE_ITEMS_SQL, (thread_id, *LIVE_ITEM_STATUSES, *HOLDING_ITEM_TYPES))
+  return any(
+    not (item_type == "dynamic_tool" and persistent in (1, True)) and run_status != "rolled_back"
+    for item_type, persistent, run_status in rows
+  )
+
+
+def json_list(text: str | None) -> list[dict[str, Any]]:
+  try:
+    value = json.loads(text) if text else []
+  except ValueError:
+    return []
+  return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def group(db: sqlite3.Connection, since_by_thread: dict[str, str], newest_first: bool,
+          state_by_thread: dict[str, str] | None = None) -> list[dict[str, str]]:
   if not since_by_thread:
     return []
+  state_by_thread = state_by_thread or {}
   marks = ",".join("?" * len(since_by_thread))
   rows = db.execute(
     f"""
@@ -205,8 +350,13 @@ def group(db: sqlite3.Connection, since_by_thread: dict[str, str], newest_first:
       "badgeColor": badge_color,
       "provider": str(provider or ""),
       "model": str(model or ""),
+      "state": state_by_thread.get(thread_id, ""),
     })
-  return sorted(items, key=lambda item: item["since"], reverse=newest_first)
+  # A state ("woke", "waiting") sorts after the group's own threads.
+  return sorted(
+    sorted(items, key=lambda item: item["since"], reverse=newest_first),
+    key=lambda item: item["state"] != "",
+  )
 
 
 def collect() -> dict[str, Any]:
@@ -216,15 +366,29 @@ def collect() -> dict[str, Any]:
   try:
     db = sqlite3.connect(f"file:{root / 'statev2.sqlite'}?mode=ro", uri=True, timeout=1.0)
     try:
+      now = now_iso()
       needs = dict(db.execute(NEEDS_YOU_SQL, INTERNAL_REQUEST_KINDS))
-      working = {k: v for k, v in db.execute(WORKING_SQL, ACTIVE_RUN_STATUSES) if k not in needs}
-      done = {
-        k: v for k, v in db.execute(DONE_SQL, (now_iso(),)) if k not in needs and k not in working
-      }
+      active = [row for row in db.execute(WORKING_SQL, ACTIVE_RUN_STATUSES) if row[0] not in needs]
+      blocked = blocked_on_thread_wait(db, [run for _, _, run, status in active if status == "running"])
+      working = {thread: since for thread, since, run, _ in active if run not in blocked}
+      waiting = {thread: since for thread, since, run, _ in active if run in blocked}
+      for thread, provider, pull_requests, status, completed in db.execute(
+        LATEST_RUN_SQL, (*LIVE_ITEM_STATUSES, *HOLDING_ITEM_TYPES)
+      ):
+        if thread in needs or thread in working or thread in waiting:
+          continue
+        if status in ("preparing", "starting", "running"):
+          continue
+        if holds_background_work(db, thread, provider, pull_requests, status):
+          waiting[thread] = completed or now
+      busy = needs.keys() | working.keys() | waiting.keys()
+      woke = {k: v for k, v in db.execute(WOKE_SQL, (now,)) if k not in busy}
+      done = {k: v for k, v in db.execute(DONE_SQL, (now,)) if k not in busy and k not in woke}
+      states = {**{k: "waiting" for k in waiting}, **{k: "woke" for k in woke}}
       return {
         "status": "ok",
-        "needsYou": group(db, needs, newest_first=False),
-        "working": group(db, working, newest_first=False),
+        "needsYou": group(db, {**needs, **woke}, newest_first=False, state_by_thread=states),
+        "working": group(db, {**working, **waiting}, newest_first=False, state_by_thread=states),
         "done": group(db, done, newest_first=True),
       }
     finally:

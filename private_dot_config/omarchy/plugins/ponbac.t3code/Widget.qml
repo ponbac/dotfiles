@@ -57,6 +57,13 @@ BarWidget {
     root.now = new Date()
   }
 
+  // A row's right-hand label, worded like the sidebar: "Waiting 1m", "Woke".
+  function rowLabel(item, suffix) {
+    if (item.state === "woke") return "woke"
+    if (item.state === "waiting") return "waiting " + root.age(item.since, "")
+    return root.age(item.since, suffix)
+  }
+
   function age(since, suffix) {
     var started = Date.parse(since)
     if (isNaN(started)) return ""
@@ -495,8 +502,10 @@ BarWidget {
                   anchors.right: parent.right
                   anchors.rightMargin: Style.space(6)
                   anchors.baseline: rowTitle.baseline
-                  text: root.age(row.modelData.since, section.modelData.suffix)
-                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45)
+                  text: root.rowLabel(row.modelData, section.modelData.suffix)
+                  color: row.modelData.state === "woke"
+                    ? root.needsYouColor
+                    : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45)
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
                   renderType: Text.NativeRendering
