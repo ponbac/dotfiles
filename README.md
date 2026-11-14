@@ -411,8 +411,9 @@ excluded on `dev-1` and unknown hosts; dev-1 retains its independent CLI updater
 
 - `~/.local/bin/t3code-nightly-update` selects strictly versioned Nightly releases
   from `pingdotgg/t3code`, excluding Stable/Preview/PR builds. It requires the
-  exact upstream asset URL, size and GitHub SHA-256 digest, verifies the streamed
-  download and publishes it atomically under
+  exact upstream asset URL, size and GitHub SHA-256 digest. It accepts versioned
+  and `T3-Code-Nightly-<arch>.AppImage` upstream names, verifies the streamed
+  download and publishes it with a versioned local filename atomically under
   `~/.local/share/t3code-nightly/versions/<version>/`. A lock prevents overlapping
   jobs. Checks/downloads fail closed; existing verified files are never overwritten.
 - `current.AppImage` is an atomic symlink. Updating changes **only the next

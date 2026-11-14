@@ -113,12 +113,14 @@ def release_asset(version, release, arch):
     assets = release.get('assets')
     if not isinstance(assets, list):
         raise UpdateError('Release has no asset list')
+    # Upstream now uses a channel-only filename; retain versioned local paths.
+    accepted_names = (name, f'T3-Code-Nightly-{arch}.AppImage')
     matches = [asset for asset in assets
-               if isinstance(asset, dict) and asset.get('name') == name]
+               if isinstance(asset, dict) and asset.get('name') in accepted_names]
     if len(matches) != 1:
-        raise UpdateError(f'Expected exactly one asset named {name}')
+        raise UpdateError(f'Expected exactly one AppImage asset named one of {accepted_names}')
     asset = matches[0]
-    url = f'{REPOSITORY}/releases/download/v{version}/{name}'
+    url = f'{REPOSITORY}/releases/download/v{version}/{asset["name"]}'
     if asset.get('browser_download_url') != url:
         raise UpdateError('Asset download URL is not the exact upstream tag/name URL')
     size = asset.get('size')

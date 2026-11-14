@@ -31,8 +31,8 @@ SHA256 = hashlib.sha256(PAYLOAD).hexdigest()
 SUBPROCESS_RUN = subprocess.run
 
 
-def release(version=NEW, arch='x86_64'):
-    name = f'T3-Code-{version}-{arch}.AppImage'
+def release(version=NEW, arch='x86_64', nightly_name=False):
+    name = f'T3-Code-{"Nightly" if nightly_name else version}-{arch}.AppImage'
     return {'tag_name': f'v{version}', 'draft': False, 'prerelease': True,
             'assets': [{'name': name, 'size': len(PAYLOAD), 'digest': f'sha256:{SHA256}',
                         'browser_download_url':
@@ -216,6 +216,28 @@ class UpdaterTests(unittest.TestCase):
         self.assertEqual((self.root / 'current.AppImage').resolve(), self.image(NEW, 'arm64'))
         self.assertTrue(self.downloads[0].endswith('-arm64.AppImage'))
 
+    def test_nightly_named_assets_keep_versioned_local_paths_and_verify_downloads(self):
+        old = self.stage_old()
+        for arch in ('x86_64', 'arm64'):
+            with self.subTest(arch=arch), \
+                 patch.object(UPDATER.platform, 'machine', return_value=arch):
+                self.pages = [[release(arch=arch, nightly_name=True)]]
+                self.downloads.clear()
+                previous = (self.root / 'current.AppImage').resolve()
+                self.download = b'x' * len(PAYLOAD)
+                self.assertIn('SHA256', self.cli(succeeds=False))
+                self.assertEqual((self.root / 'current.AppImage').resolve(), previous)
+                self.assertFalse(self.image(NEW, arch).exists())
+                self.download = PAYLOAD
+                self.cli()
+                self.assertEqual((self.root / 'current.AppImage').resolve(), self.image(NEW, arch))
+                self.assertEqual(self.image(NEW, arch).read_bytes(), PAYLOAD)
+                self.assertEqual(self.downloads[-1],
+                                 f'{UPDATER.REPOSITORY}/releases/download/v{NEW}/T3-Code-Nightly-{arch}.AppImage')
+                self.assertIn('Already staged', self.cli())
+                self.assertEqual(len(self.downloads), 2)
+                self.assertEqual(old.read_bytes(), PAYLOAD)
+
     def test_bad_downloads_leave_prior_current_and_no_partial_image(self):
         old = self.stage_old()
         cases = [
@@ -247,6 +269,20 @@ class UpdaterTests(unittest.TestCase):
             with self.subTest(key=key, value=value):
                 item = release()
                 item['assets'][0][key] = value
+                self.pages = [[item]]
+                self.cli(succeeds=False)
+                self.assertEqual(self.downloads, [])
+                self.assert_old_preserved(old)
+
+    def test_nightly_named_assets_reject_wrong_tag_urls_and_ambiguous_assets(self):
+        old = self.stage_old()
+        wrong_url = release(nightly_name=True)
+        asset = wrong_url['assets'][0]
+        asset['browser_download_url'] = asset['browser_download_url'].replace(f'/v{NEW}/', f'/v{OLD}/')
+        ambiguous = release(nightly_name=True)
+        ambiguous['assets'].extend(release()['assets'])
+        for item in (wrong_url, ambiguous):
+            with self.subTest(assets=item['assets']):
                 self.pages = [[item]]
                 self.cli(succeeds=False)
                 self.assertEqual(self.downloads, [])
