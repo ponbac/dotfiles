@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Switch Hex back to everyday English dictation: Parakeet Unified English + the saved work vocabulary.
+set -euo pipefail
+saved=~/.local/share/hex/vocabulary-dev-default.json
+
+if [ "$(hex status | grep -o 'Meeting *recording' || true)" ]; then
+  echo "A meeting is still recording; stop it first with: hex meetings stop" >&2
+  exit 1
+fi
+
+hex model use parakeet_unified_en --language en >/dev/null
+
+# Replace whatever is in the vocabulary with the saved work list.
+hex vocabulary list --json |
+  python3 -c 'import json,sys; [print(e["term"]) for e in json.load(sys.stdin)["entries"]]' |
+  while IFS= read -r t; do hex vocabulary remove "$t" >/dev/null; done
+
+if [ -f "$saved" ]; then
+  python3 -c '
+import json,sys
+for e in json.load(open(sys.argv[1]))["entries"]:
+    print(e["term"] + "\t" + ",".join(e.get("sounds_like") or []))' "$saved" |
+    while IFS=$'\t' read -r t sl; do
+      if [ -n "$sl" ]; then hex vocabulary add "$t" --sounds-like "$sl" >/dev/null
+      else hex vocabulary add "$t" >/dev/null; fi
+    done
+fi
+
+echo "Hex: work mode (Parakeet English, $(hex vocabulary list --json | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["entries"]))') vocabulary terms)"

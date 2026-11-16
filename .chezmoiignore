@@ -49,6 +49,8 @@ manifests
 .local/share/omarchy-overrides
 .local/share/vicinae
 .local/bin/bot-hook
+.local/bin/hex-meeting
+.local/bin/hex-work
 .config/systemd/user/vicinae.service.d
 .config/vicinae
 .config/environment.d/60-t3code-nightly.conf

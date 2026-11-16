@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Switch Hex to the Swedish meeting setup: Whisper large-v3-turbo (sv), empty vocabulary.
+# A vocabulary makes Whisper hallucinate on quiet audio, so the work vocabulary is saved and cleared.
+set -euo pipefail
+saved=~/.local/share/hex/vocabulary-dev-default.json
+
+current=$(hex vocabulary list --json)
+if python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["entries"] else 1)' <<<"$current"; then
+  printf '%s\n' "$current" > "$saved"
+fi
+
+python3 -c 'import json,sys; [print(e["term"]) for e in json.load(sys.stdin)["entries"]]' <<<"$current" |
+  while IFS= read -r t; do hex vocabulary remove "$t" >/dev/null; done
+
+if hex model status whisper_large_v3_turbo 2>/dev/null | grep -q '^installed'; then
+  hex model use whisper_large_v3_turbo --language sv >/dev/null
+else
+  echo "Downloading Whisper large-v3-turbo (886 MB) first..."
+  hex model install whisper_large_v3_turbo --language sv >/dev/null
+  until hex model status whisper_large_v3_turbo 2>/dev/null | grep -q '^installed'; do sleep 5; done
+  sleep 3
+  hex model use whisper_large_v3_turbo --language sv >/dev/null
+fi
+hex settings set meetings.enabled true >/dev/null
+echo "Hex: meeting mode (Whisper, Swedish, no vocabulary). Work vocabulary saved to $saved"
+echo "Record: hex meetings record --title \"...\"   Stop: hex meetings stop"

@@ -133,6 +133,12 @@ Bring those edits back and review them before using SSH deployment.
   message to that Grok Bot agent's webhook through `~/.local/bin/bot-hook`. Webhook URL and key
   live per bot in `~/.config/bot-hooks/<bot>.env` (not synced); create them with
   `bot-hook --setup <bot>`. Needs `curl` and `jq`.
+- `hex-meeting` / `hex-work` (Omarchy desktops only) toggle Hex (`hex-bin`) between Swedish
+  meeting transcription (Whisper large-v3-turbo, `sv`, empty vocabulary) and English dictation
+  (Parakeet Unified English plus the work vocabulary). Any vocabulary makes Whisper hallucinate
+  on quiet audio, so `hex-meeting` saves the current list to
+  `~/.local/share/hex/vocabulary-dev-default.json` (host-local, not synced) and clears it;
+  `hex-work` restores it. `hex-meeting` downloads Whisper on first use.
 - Vicinae file indexing is disabled on Omarchy desktops with the native
   `providers.files.preferences.autoIndexing = false` setting in `~/.config/vicinae/settings.json`.
   The merge preserves each host's themes, extensions and other preferences. Indexing had
