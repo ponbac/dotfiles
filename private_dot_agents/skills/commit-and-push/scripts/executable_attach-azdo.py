@@ -8,6 +8,7 @@ import base64
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 from typing import Any
@@ -81,19 +82,41 @@ def validate_files(paths: list[Path], max_size_mb: float) -> list[Path]:
     return resolved
 
 
-def authorization(pat_env: str) -> str:
+def organization_tenant(base: str) -> str | None:
+    """Return the Entra tenant that owns the organization.
+
+    The default `az login` tenant is often a different one, and its token is then
+    rejected with a redirect to the sign-in page.
+    """
+    request = Request(f"{base}/_apis/connectionData", method="HEAD")
+    try:
+        with urlopen(request) as response:
+            headers = response.headers
+    except HTTPError as error:
+        headers = error.headers
+    except URLError as error:
+        raise AttachError(f"cannot reach {base}: {error.reason}") from error
+    return headers.get("X-VSS-ResourceTenant")
+
+
+def authorization(pat_env: str, base: str) -> str:
     pat = os.environ.get(pat_env)
     if pat:
         token = base64.b64encode(f":{pat}".encode()).decode()
         return f"Basic {token}"
+    # On Windows the Azure CLI is az.cmd, which subprocess only finds through shutil.which.
+    az = shutil.which("az")
+    if az is None:
+        raise AttachError(f"authentication failed: set {pat_env} or install the Azure CLI and run `az login`")
     try:
         result = subprocess.run(
             [
-                "az",
+                az,
                 "account",
                 "get-access-token",
                 "--resource",
                 AZDO_RESOURCE,
+                *(["--tenant", tenant] if (tenant := organization_tenant(base)) else []),
                 "--query",
                 "accessToken",
                 "--output",
@@ -210,7 +233,7 @@ def main() -> int:
             return 0
 
         base = organization_url(args.organization)
-        auth = authorization(args.pat_env)
+        auth = authorization(args.pat_env, base)
         existing = existing_attachment_names(
             request_json(
                 "GET",
