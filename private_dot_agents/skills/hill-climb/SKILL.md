@@ -1,6 +1,6 @@
 ---
 name: hill-climb
-description: Climb a score to a target. A blind council of Sol and Opus scores UI screenshots, or a programmatic eval scores behaviour. Stops at a PR.
+description: Climb a score to a target. A blind council of Astra and Opus scores UI screenshots, or a programmatic eval scores behaviour. Stops at a PR.
 disable-model-invocation: true
 ---
 

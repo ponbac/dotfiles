@@ -1,6 +1,6 @@
 ---
 name: second-opinion
-description: One judged answer from the other model through T3 `delegate_task` (Opus asks GPT-6.1-Sol, Codex asks Opus). Use when the user asks for a second opinion or a plan review, says "cross-check" about a plan, or when another skill needs the other model.
+description: One judged answer from the other model through T3 `delegate_task` (Opus asks GPT-6.2-Astra, Codex asks Opus). Use when the user asks for a second opinion or a plan review, says "cross-check" about a plan, or when another skill needs the other model.
 ---
 
 # Second opinion
@@ -11,10 +11,10 @@ A **second opinion** hands one artifact to the other model and ends with an adju
 
 | You are | Reviewer `target` |
 | --- | --- |
-| Claude | `{providerInstanceId:"codex", model:"gpt-6.1-sol", options:{reasoningEffort:"xhigh"}}` |
+| Claude | `{providerInstanceId:"codex", model:"gpt-6.2-astra", options:{reasoningEffort:"high"}}` |
 | Codex | `{providerInstanceId:"claudeAgent", model:"claude-opus-5-5", options:{effort:"high"}}` |
 
-A model or effort the user names wins ("sol 6.1 high"). Check unfamiliar IDs with `orchestrator_capabilities`.
+A model or effort the user names wins ("astra 6.2 xhigh"). Check unfamiliar IDs with `orchestrator_capabilities`.
 
 If the user names extra reviewers, run each one alongside round 1. Later rounds stay with the main reviewer.
 

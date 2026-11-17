@@ -13,7 +13,7 @@ A **spinoff** is a new T3 thread with its own worktree, model and **brief**. The
    - **existing_worktree**: only to continue work that already has a checkout.
 
    Use the prefix `feat/`, `fix/`, `perf/`, `research/` or `chore/`.
-2. **Model.** The user's choice wins. Otherwise use Opus 5.5 high: `{instanceId:"claudeAgent", model:"claude-opus-5-5", options:{effort:"high"}}`. When the user asks for Sol, use `{instanceId:"codex", model:"gpt-6.1-sol", options:{reasoningEffort:"xhigh"}}`.
+2. **Model.** The user's choice wins. Otherwise use Opus 5.5 high: `{instanceId:"claudeAgent", model:"claude-opus-5-5", options:{effort:"high"}}`. When the user asks for Astra, use `{instanceId:"codex", model:"gpt-6.2-astra", options:{reasoningEffort:"high"}}`.
 
    If the user names another machine, launch in that environment's project. Ask if it is ambiguous.
 3. **Brief.** Write the message with these parts:

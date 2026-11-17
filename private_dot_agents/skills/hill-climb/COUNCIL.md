@@ -6,14 +6,14 @@ Two judges score screenshots. Scores are vibes and drift between runs, so every 
 
 | Judge | `delegate_task` target |
 | --- | --- |
-| Sol | `{providerInstanceId:"codex", model:"gpt-6.1-sol", options:{reasoningEffort:"high"}}` |
+| Astra | `{providerInstanceId:"codex", model:"gpt-6.2-astra", options:{reasoningEffort:"high"}}` |
 | Opus | `{providerInstanceId:"claudeAgent", model:"claude-opus-5-5", options:{effort:"high"}}` |
 
 Check the IDs with `orchestrator_capabilities` once per climb. If a judge is unavailable, stop and tell Pontus rather than swapping in another model.
 
 Delegate and wait as in `second-opinion` steps 2 and 3. Use `role: "review"`, `mode: "async"`, the title `Hill climb <slug> r<N>: <judge>` and the clientRequestId `<slug>-hc-r<N>-<judge>`. Every round is a **new** `delegate_task` for every judge. Never send a judge a follow-up in an existing thread. Judges run in the climb's checkout, since T3 starts a local child only in the thread's project. There, every judge loads the repo's agent instructions and could open its docs, so the brief keeps judges to the images. Knowing the repo's general context does little harm. What must never reach a judge is the climb's state (Validate).
 
-**Calibration (round 0).** Both judges score the base shots and the references. Their scales differ: in practice, Opus scores well below Sol. So the target is set per judge, from this round.
+**Calibration (round 0).** Both judges score the base shots and the references. Their scales differ (Opus scored well below Sol 6.1, the judge before Astra), so the target is set per judge, from this round.
 
 Run both judges every round. With one judge alone, the other's gap stays hidden until it runs again.
 
@@ -86,7 +86,7 @@ If a file fails a check, relaunch that judge once with a fresh `delegate_task` (
 - **Drift:** a reference mean moving by more than the noise is drift. The relative target is immune to it. In absolute mode, a round whose reference means moved more than 0.5 from calibration doesn't count toward "reached". Report it alongside the round's scores.
 - **Round table:** posted after every round, in the step 3 update.
 
-  | Category | Sol: ours (mean / min) | Sol: refs | Opus: ours (mean / min) | Opus: refs |
+  | Category | Astra: ours (mean / min) | Astra: refs | Opus: ours (mean / min) | Opus: refs |
   |---|---|---|---|---|
 
   Under the table, list:
