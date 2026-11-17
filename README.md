@@ -95,6 +95,8 @@ Bring those edits back and review them before using SSH deployment.
 - Global agent instructions: `.chezmoitemplates/agents/global-instructions.md`
   renders to `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.pi/agent/AGENTS.md`
   and `~/.config/opencode/AGENTS.md`.
+- agent-browser's global config and recording pointer (`~/.agent-browser/`); see
+  the agent-browser section.
 - Pi extensions, selected settings/model overrides, built-in MCP and pinned packages.
   The retired `pi-mcp-adapter` is not installed. Executor uses native HTTP bearer
   headers with `${EXECUTOR_MCP_TOKEN}` and direct tool exposure; the token stays local.
@@ -256,6 +258,17 @@ On a Linux host missing browser system libraries, run
 and review its privileged package-manager changes. Bootstrap does not use sudo.
 Unlike the four coding agents, agent-browser retains mise's default release-age
 policy. Avoid `npm install -g agent-browser` outside mise or its own updater.
+
+`~/.agent-browser/config.json` registers `~/.agent-browser/recording-cursor.js` as
+an init script in every browser agent-browser launches. The script draws a large
+pointer only while `agent-browser record start <file> --cursor` runs, replacing
+agent-browser's small built-in one, so ordinary screenshots never show it. It
+glides between targets, shrinks on press and leaves a ripple on each click; the
+movement and pointer artwork come from Playwriter's ghost cursor (MIT). Browsers
+already running keep the old setup until they are relaunched. The global agent
+instructions tell agents to record with `--cursor` and use real `hover`/`click`.
+Only these two files are managed; sessions, auth and keys in `~/.agent-browser/`
+stay local.
 
 ### Mise automatic updates
 

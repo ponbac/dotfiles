@@ -10,3 +10,4 @@
   ```
 
   On Azure DevOps, use only the `> 🤖 …` line. Skip the note for `@codex review` and text the user wants posted verbatim.
+- Record every browser video with `agent-browser record start <file> --cursor`. That flag turns on the large pointer from `~/.agent-browser/recording-cursor.js`. Drive the page with `hover` and `click` on refs or selectors, not `eval` clicks, and `hover` each target and `wait 800` before clicking, so viewers see where the pointer goes.
