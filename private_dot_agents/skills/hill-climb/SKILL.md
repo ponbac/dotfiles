@@ -53,15 +53,15 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
       For the council, act only on complaints that survive the **filter**. A complaint survives when:
       - it is within the scope;
       - it holds against the pixels, or against the running app for content below the fold. Log claims that don't hold in `STATE.md`;
-      - both judges share it, or it is a **defect**: something broken you can point to in the pixels, such as clipped, cut-off or overlapping text, misalignment or unreadable contrast. Making two working elements match, or moving or restyling one, is a taste call. A taste call from one judge doesn't survive, however many screens it repeats on;
-      - it is not a **reversal**: a judge asking to undo something it asked for earlier in this climb. Keep the current version and log the reversal. A reversal removes only that judge's complaint; the other judge's view still counts on its own. Reversals concern complaints, not pair picks (COUNCIL.md, Progress);
-      - it is not contradicted by the other judge;
+      - at least two judges share it, or it is a **defect**: something broken you can point to in the pixels, such as clipped, cut-off or overlapping text, misalignment or unreadable contrast. Making two working elements match, or moving or restyling one, is a taste call. A taste call from one judge doesn't survive, however many screens it repeats on;
+      - it is not a **reversal**: a judge asking to undo something it asked for earlier in this climb. Keep the current version and log the reversal. A reversal removes only that judge's complaint; the other judges' views still count on their own. Reversals concern complaints, not pair picks (COUNCIL.md, Progress);
+      - it is not contradicted by another judge;
       - it is not about test data. When judges keep flagging the test data, check whether it looks like production. If it doesn't, fixing it is part of step 1 (tell Pontus, since it changes the artefact). If it does, log the complaint once as a known artefact and skip it in later rounds.
 
-      When both judges preferred the previous image of a pair in the last round, revert that change in this batch.
+      When at least two judges preferred the previous image of a pair in the last round, revert that change in this batch.
    2. Run the regression gate, then commit the batch on the branch (`hill-climb r<N>: <summary>`). Reverts and per-round diffs then come from commits, never from a working tree that one checkout can wipe. Step 5 may squash them.
    3. Capture the round.
-   4. For the council, do a **regression review** yourself: compare the previous round against this one, shot by shot, and check every item on the must-keep list. Then look at every key shot, and each change at every viewport in the shot list, for what judges miss: clipped or overflowing text, controls that crowd or cover each other, elements in odd places, and awkward or unclear copy (judges read the UI's language poorly). Fix what you find, recapture, then score.
+   4. For the council, do a **regression review** yourself: compare the previous round against this one, shot by shot, and check every item on the must-keep list. Then look at every key shot, and each change at every viewport in the shot list, for what judges miss: clipped or overflowing text, controls that crowd or cover each other, elements in odd places, text that isn't vertically centred in its button, badge, circle or row (zoom in: agents often get this wrong and judges rarely notice), and awkward or unclear copy (judges read the UI's language poorly). Fix what you find, recapture, then score.
    5. Score the round and append the row to the scoreboard.
    6. Post the round update in this thread, and also to Gon if that was chosen: the round table from COUNCIL.md (or the eval score and its spread), what changed, and annotated screenshots of the changes, with arrows and a one-line note per change. Post the images at full resolution, with desktop shots at their full width. Annotated images are for Pontus only. Judges get raw shots.
 
@@ -77,7 +77,7 @@ Keep all climb state outside the repo, in `~/.local/state/hill-climb/<slug>/`, s
    - **Exhausted** (council): no complaint survives the filter (step 3.1) for a batch.
    - **Budget:** the round budget is spent.
 
-   On plateau, exhaustion or budget, tell Pontus how far from the target each judge is, its average progress per round over the climb, how many more rounds the target would take at that rate, and what the references score. Say whether the top remaining complaints contradict the other judge or the same judge's earlier requests. If most do, the judges have run out of shared direction and more rounds will flip back and forth. Pontus decides whether to extend, retarget or end the climb.
+   On plateau, exhaustion or budget, tell Pontus how far from the target each judge is, its average progress per round over the climb, how many more rounds the target would take at that rate, and what the references score. Say whether the top remaining complaints contradict another judge or the same judge's earlier requests. If most do, the judges have run out of shared direction and more rounds will flip back and forth. Pontus decides whether to extend, retarget or end the climb.
 5. **Report.** First get the whole climb's diff reviewed with `review-loop`, and fix what it finds: the gate and the screenshots miss behaviour bugs, such as a value that no longer shows or a button that acts on the wrong item. Its fixes, and any revert after the last scored round, leave a final state no judge saw: recapture it for the board, and say in the report that it wasn't scored. Then open a draft PR with `commit-and-push` and include the scoreboard in its body. Give Pontus:
    - the stop reason;
    - the scoreboard;

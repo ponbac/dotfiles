@@ -9,19 +9,21 @@ Two judges score screenshots. Scores are vibes and drift between runs, so every 
 | Astra | `{providerInstanceId:"codex", model:"gpt-6.2-astra", options:{reasoningEffort:"high"}}` |
 | Opus | `{providerInstanceId:"claudeAgent", model:"claude-opus-5-5", options:{effort:"high"}}` |
 
+These are the default judges. Pontus may add or swap judges in step 1, such as Fable 5.2, and each judge gets the same brief. The filter and the revert rule need at least two judges to agree, and the target still has to hold for every judge.
+
 Check the IDs with `orchestrator_capabilities` once per climb. If a judge is unavailable, stop and tell Pontus rather than swapping in another model.
 
 Delegate and wait as in `second-opinion` steps 2 and 3. Use `role: "review"`, `mode: "async"`, the title `Hill climb <slug> r<N>: <judge>` and the clientRequestId `<slug>-hc-r<N>-<judge>`. Every round is a **new** `delegate_task` for every judge. Never send a judge a follow-up in an existing thread. Judges run in the climb's checkout, since T3 starts a local child only in the thread's project. There, every judge loads the repo's agent instructions and could open its docs, so the brief keeps judges to the images. Knowing the repo's general context does little harm. What must never reach a judge is the climb's state (Validate).
 
-**Calibration (round 0).** Both judges score the base shots and the references. Their scales differ (Opus scored well below Sol 6.1, the judge before Astra), so the target is set per judge, from this round.
+**Calibration (round 0).** Every judge scores the base shots and the references. Their scales differ (Opus scored well below Sol 6.1, the judge before Astra), so the target is set per judge, from this round.
 
-Run both judges every round. With one judge alone, the other's gap stays hidden until it runs again.
+Run every judge every round. A judge that skips a round hides its gap until it runs again.
 
 ## Shot list
 
 Fix the shot list in step 1 with Pontus. Choose 16–24 key shots: the screens that matter most to him, the states they have (populated, empty, error), light and dark, phone and desktop. Every round, calibration included, scores the key list, and the target and scoreboard use only it. A longer **full list** is optional. Score it at calibration and in the confirmation round as a separate check that screens outside the key list didn't regress, and keep it out of the averages. Shoot every entry with `capture`, in the same order, at the same size, with the same data. Never scale shots down: judges read scaled text as smaller than it is and ask for bigger type. If an image must be smaller, crop it. For a screen taller than the viewport, add a shot scrolled to its end, so judges don't guess at what's below the fold.
 
-To build `capture`, see the `run` skill for starting the app, and use `agent-browser`, the T3 `preview_*` tools or `rea capture_web_screenshot` to take the shots. Starting the app inside the command means a dev server dying between rounds can't break a capture.
+To build `capture`, see the `run` skill for starting the app, and use `agent-browser`, the T3 `preview_*` tools or `rea capture_web_screenshot` to take the shots. Starting the app inside the command means a dev server dying between rounds can't break a capture. Start it on free ports, not fixed ones, so another session's app can't block the capture or end up in its shots. Make the capture fail when a request errors or an image doesn't load: a broken image is easy to miss in a shot, and judges score it anyway.
 
 ## References
 
@@ -88,6 +90,8 @@ If a file fails a check, relaunch that judge once with a fresh `delegate_task` (
 
   | Category | Astra: ours (mean / min) | Astra: refs | Opus: ours (mean / min) | Opus: refs |
   |---|---|---|---|---|
+
+  Add a pair of columns for each extra judge.
 
   Under the table, list:
   - each judge's picks on the changed pairs, whether it backs the round, and whether the signal is weak;
