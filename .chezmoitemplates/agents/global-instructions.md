@@ -11,3 +11,4 @@
 
   On Azure DevOps, use only the `> 🤖 …` line. Skip the note for `@codex review` and text the user wants posted verbatim.
 - Record every browser video with `agent-browser record start <file> --cursor`. That flag turns on the large pointer from `~/.agent-browser/recording-cursor.js`. Drive the page with `hover` and `click` on refs or selectors, not `eval` clicks, and `hover` each target and `wait 800` before clicking, so viewers see where the pointer goes.
+- Never `pkill -f` or `pgrep -f` a pattern that also appears in your own command line. It matches your own shell and kills it (exit 144), and it can hit other sessions' processes. Kill the PID you started, or bracket the pattern: `pkill -f '[a]lchemy dev'`.

@@ -47,3 +47,4 @@ Set `X=~/.agents/skills/session-review/scripts/session_export.py`; the script ne
 - Reasoning isn't exported, and the middle of a transcript over 90k characters is cut. Mark a first failure as unverifiable when it may sit in the cut.
 - T3 stores full tool outputs. The model may have seen a truncated version, so a large stored output doesn't prove the context was flooded.
 - For aggregate numbers, such as polling calls per thread, query the database and report them alongside the sample.
+- In Claude threads, a skill the user names with `$name` or `/name` is expanded into the message, and the export doesn't show it. So a missing Skill call doesn't mean the skill wasn't loaded. Check the session log under `~/.claude/projects/` before saying so.
