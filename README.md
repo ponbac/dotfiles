@@ -91,7 +91,11 @@ Bring those edits back and review them before using SSH deployment.
 ## What is managed
 
 - Shared skill library and Claude-specific links/variants. Manual invocation
-  flags and Codex invocation policies travel with the skills.
+  flags and Codex invocation policies travel with the skills. `ui-sdk` is vendored
+  from [vercel-labs/ui at `3647512`](https://github.com/vercel-labs/ui/tree/3647512865fe0242b749dd8981c51c75ad5f486b/packages/core/skills/ui-sdk),
+  with its references and upstream license. Chezmoi installs it to
+  `~/.agents/skills/ui-sdk` and links it from Claude's skill directory; no `npx`
+  step is needed on each host.
 - Global agent instructions: `.chezmoitemplates/agents/global-instructions.md`
   renders to `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.pi/agent/AGENTS.md`
   and `~/.config/opencode/AGENTS.md`.
