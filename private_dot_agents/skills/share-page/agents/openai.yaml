@@ -1,0 +1,3 @@
+interface:
+  display_name: "Share Page"
+  short_description: "Publish a page on Cloudflare, public or for named emails"
