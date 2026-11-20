@@ -11,7 +11,8 @@ deferral below are historical context; README describes the current setup.
 
 **REA addition:** all three hosts track `npm:rea-agents` at `latest` with daily
 update checks in `99-rea.toml` (the initial 6.4.0 pin is retired).
-Chezmoi now allows Executor + REA in the global MCP policies;
+Chezmoi allowed Executor + REA in the global MCP policies (REA's MCP entry was
+later disabled; README has the current state);
 REA's skill-only setup owns the excluded shared/Claude skill trees. This is a
 JavaScript/Electron-first installation, with no optional native engines or
 runtime replacement. See README's REA section for validation, repair and rollback.

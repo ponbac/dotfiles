@@ -1,0 +1,27 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- $current := dict -}}
+{{- if .chezmoi.stdin -}}{{- $current = fromJsonc .chezmoi.stdin -}}{{- end -}}
+{{- /* Antigravity sends ${VAR} in global MCP headers literally (1.5.13), so this
+       file holds the host-local Executor token itself, mode 0600. The token comes
+       from the environment, else the host's environment.d file, else the live
+       file, so an apply without the token never strips it. It is never synced. */ -}}
+{{- $token := env "EXECUTOR_MCP_TOKEN" -}}
+{{- $envFile := joinPath .chezmoi.homeDir ".config" "environment.d" "90-executor-mcp.conf" -}}
+{{- if and (not $token) (stat $envFile) -}}
+  {{- $match := include $envFile | regexFind "(?m)^EXECUTOR_MCP_TOKEN=.*$" -}}
+  {{- $token = $match | trimPrefix "EXECUTOR_MCP_TOKEN=" | trim | trimAll "\"'" -}}
+{{- end -}}
+{{- $header := "" -}}
+{{- if $token -}}
+  {{- $header = printf "Bearer %s" $token -}}
+{{- else -}}
+  {{- $live := dig "mcpServers" "executor" "headers" "Authorization" "" $current -}}
+  {{- if kindIs "string" $live -}}{{- $header = $live -}}{{- end -}}
+{{- end -}}
+{{- /* Shared policy owns the entire global MCP server map. */ -}}
+{{- $_ := unset $current "mcpServers" -}}
+{{- $policy := include (joinPath .chezmoi.sourceDir ".chezmoitemplates" "agents" "antigravity-mcp.json") | fromJson -}}
+{{- if $header -}}
+  {{- $_ := set $policy.mcpServers.executor "headers" (dict "Authorization" $header) -}}
+{{- end -}}
+{{- includeTemplate "agents/keep-format" (dict "stdin" .chezmoi.stdin "value" (mergeOverwrite $current $policy) "format" "json") -}}

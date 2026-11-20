@@ -96,9 +96,13 @@ Bring those edits back and review them before using SSH deployment.
   with its references and upstream license. Chezmoi installs it to
   `~/.agents/skills/ui-sdk` and links it from Claude's skill directory; no `npx`
   step is needed on each host.
+- Antigravity (`agy`) reads the whole shared library through
+  `~/.gemini/config/skills.json`, which points at `~/.agents/skills`; no per-skill
+  links. It honors `disable-model-invocation`. Omarchy's own links in
+  `~/.gemini/config/skills/` are left alone and win on a name clash.
 - Global agent instructions: `.chezmoitemplates/agents/global-instructions.md`
-  renders to `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.pi/agent/AGENTS.md`
-  and `~/.config/opencode/AGENTS.md`.
+  renders to `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.pi/agent/AGENTS.md`,
+  `~/.config/opencode/AGENTS.md` and `~/.gemini/config/AGENTS.md` (Antigravity).
 - agent-browser's global config and recording pointer (`~/.agent-browser/`); see
   the agent-browser section.
 - Pi extensions, selected settings/model overrides, built-in MCP and pinned packages.
@@ -126,10 +130,16 @@ Bring those edits back and review them before using SSH deployment.
   then reconcile Pi, Codex, Claude and OpenCode integrations using that release.
   Recovery manifests record existing and missing targets under
   `~/.local/state/herdr-integration-backups/`.
-- Executor + REA global MCP configuration for Pi, Claude, Codex and OpenCode v2.
+- Executor global MCP configuration for Pi, Claude, Codex and OpenCode v2.
   OpenCode's `opencode.json` owns MCP configuration; `opencode.jsonc` has its MCP
   section removed so it cannot reintroduce servers. Both preserve unrelated settings.
   All clients reference the host-local `EXECUTOR_MCP_TOKEN`; no token is synced.
+- Executor for Antigravity in `~/.gemini/config/mcp_config.json`. Antigravity
+  sends `${VAR}` in global MCP headers literally (checked in 1.5.13), so apply writes
+  the host-local `EXECUTOR_MCP_TOKEN` into that file (0600). It reads the environment,
+  then `~/.config/environment.d/90-executor-mcp.conf`, then keeps the live header, so
+  an apply without the token never strips it. The token is never synced, but
+  `chezmoi diff` of this file shows it: don't paste that diff anywhere.
 - Clean shared Bash fragment, Git preferences, JJ, Herdr, tmux and Starship.
 - Omarchy-only user configuration, custom plugins, terminal preferences and
   selected service definitions. Hardware/layout differences use host templates.
@@ -166,7 +176,7 @@ Bring those edits back and review them before using SSH deployment.
 Agent `modify_` sources merge selected keys with current settings. They preserve
 host-local tokens, project trust, desktop-generated Codex plugins/marketplaces,
 and unrelated state. When a merge changes no data, the live file is kept byte for byte
-(`.chezmoitemplates/agents/keep-format`), so key order and whitespace never show as drift. Global MCP server maps are replaced with Executor + REA only,
+(`.chezmoitemplates/agents/keep-format`), so key order and whitespace never show as drift. Global MCP server maps are replaced with Executor only,
 including removal of stale executor credentials/options. Project-local MCP
 configuration is outside this policy and remains unmanaged.
 Security/permission relaxations are not
@@ -366,13 +376,24 @@ Validation: `python3 -B -m unittest discover -s tools -p 'test_desktop_package_m
 All three hosts track stable `npm:rea-agents` **latest** through mise's shared
 `99-rea.toml`, with daily auto-update checks and explicit sync/bootstrap upgrades.
 The initial 6.4.0 rollout pin has been retired. `~/.local/bin/rea` delegates to
-mise, and all four agents launch that absolute wrapper as a local
-stdio MCP server alongside Executor. No remote analysis service is configured.
+mise. No remote analysis service is configured.
 
-Chezmoi owns the MCP registrations. REA owns only its version-matched generated
-skills under `~/.agents/skills/reverse-engineer-anything` (Pi, Codex, OpenCode)
+**Disabled in all agents for now (2026-11-20):** REA stays installed and updated,
+but no agent registers its MCP server or loads its skill. Chezmoi owns the MCP
+maps, so applying removes stale `rea` entries. Mise has no REA postinstall, and
+bootstrap moves leftover `reverse-engineer-anything` skill trees into
+`~/.local/state/rea-skill-install-backups/<time>-disabled/`.
+
+To re-enable: add the `rea` stdio entry (`~/.local/bin/rea mcp`) back to each
+`.chezmoitemplates/agents/*-mcp.json` and `codex-settings.json` and to the expected
+set in `tools/test_mcp_policy.py`; restore the commented postinstall in
+`99-rea.toml`; and in `tools/bootstrap-agents.sh` replace the retire loop with
+`python3 "$tools_dir/install-rea-skills.py" "$(mise where npm:rea-agents)"`.
+
+When enabled, REA owns only its version-matched generated
+skills under `~/.agents/skills/reverse-engineer-anything` (Pi, Codex, OpenCode, Antigravity)
 and `~/.claude/skills/reverse-engineer-anything` (Claude). Those trees are excluded
-from chezmoi. Mise postinstall and explicit bootstrap run
+from chezmoi. Mise postinstall and explicit bootstrap then run
 `tools/install-rea-skills.py`, which previews and approves **only** the shared and
 Claude skill destinations. It rejects unexpected actions and symlinked skill
 paths, serializes writes with the existing integration lock, and backs up changed

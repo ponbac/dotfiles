@@ -34,11 +34,19 @@ mise install pi codex claude npm:@opencode/cli github:herdrdev/herdr
 # Browser automation deliberately retains only the current version.
 bash "$tools_dir/bootstrap-agent-browser.sh"
 mise install github:backnotprop/plannotator
-# REA follows latest; its setup remains skill-only, never MCP registration.
+# REA follows latest but is disabled in agents: no MCP registration and no
+# generated skills. Retire leftover skill trees into a private recovery backup.
 mise cache clear npm:rea-agents
 mise upgrade --global --yes --no-prune npm:rea-agents
 mise install npm:rea-agents
-python3 "$tools_dir/install-rea-skills.py" "$(mise where npm:rea-agents)"
+for skill in .agents/skills/reverse-engineer-anything .claude/skills/reverse-engineer-anything; do
+  if [[ -e "$HOME/$skill" || -L "$HOME/$skill" ]]; then
+    backup="${rea_backup:=$HOME/.local/state/rea-skill-install-backups/$(date +%Y%m%d-%H%M%S)-$$-disabled}"
+    mkdir -p -m 700 "$backup/$(dirname "$skill")"
+    mv "$HOME/$skill" "$backup/$skill"
+    printf 'REA skill retired: %s\n' "$backup/$skill"
+  fi
+done
 mise reshim
 # Reconcile bundled hooks even when Herdr was already installed (no postinstall).
 bash "$tools_dir/install-herdr-integrations.sh" "$(mise where github:herdrdev/herdr)/herdr"

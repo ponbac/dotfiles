@@ -1,6 +1,7 @@
-# Track stable REA releases and reconcile their matching generated skills.
-# Chezmoi owns MCP registrations; REA owns only its generated skill trees.
+# Track stable REA releases. Its MCP registration and generated skills are both
+# disabled for now; bootstrap retires leftover skill trees. To re-enable the skills,
+# restore this postinstall and the bootstrap call (see README's REA section):
+# postinstall = 'python3 "$HOME/.local/share/chezmoi/tools/install-rea-skills.py" "$MISE_TOOL_INSTALL_PATH"'
 [tools."npm:rea-agents"]
 version = "latest"
 auto_update = "24h"
-postinstall = 'python3 "$HOME/.local/share/chezmoi/tools/install-rea-skills.py" "$MISE_TOOL_INSTALL_PATH"'

@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "executor": {
+      "url": "https://executor.pike-quail.ts.net/mcp"
+    }
+  }
+}
