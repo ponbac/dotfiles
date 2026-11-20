@@ -1,0 +1,4 @@
+# Native apps use LC_TIME; Chromium uses the message locale for default web time formatting.
+# Keep LANG and the other locale categories unchanged.
+export LC_TIME=en_GB.UTF-8
+export LC_MESSAGES=en_GB.UTF-8

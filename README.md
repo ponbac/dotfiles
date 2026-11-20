@@ -133,6 +133,13 @@ Bring those edits back and review them before using SSH deployment.
 - Clean shared Bash fragment, Git preferences, JJ, Herdr, tmux and Starship.
 - Omarchy-only user configuration, custom plugins, terminal preferences and
   selected service definitions. Hardware/layout differences use host templates.
+- Both Omarchy desktops use 24-hour time via `~/.config/uwsm/env.d/70-clock-format`.
+  `LC_TIME` covers native time formatting; `LC_MESSAGES` makes Chromium use
+  UK English for its default web time formatting. This leaves `LANG` unchanged,
+  though apps may use UK English wording or date conventions. Check that
+  `locale -a` lists `en_GB.utf8`; if not, enable `en_GB.UTF-8 UTF-8` in
+  `/etc/locale.gen` and run `sudo locale-gen`. Log out and back in after applying.
+  Websites or apps with their own time-format settings may still need a change there.
 - Vicinae script command `tw <channel>` (Omarchy desktops only): opens a Twitch
   channel in mpv at best quality (up to 1080p60) via yt-dlp. Needs `mpv` and `yt-dlp`.
 - Vicinae script commands `kite`, `gon` and `nudge` (Omarchy desktops only): send a free-text
