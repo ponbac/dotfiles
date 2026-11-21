@@ -7,8 +7,8 @@ Use PR-hosted attachments for review evidence that should not be committed to th
 - Attach media only when it materially helps a reviewer understand or verify the change: UI before/after states, a hard-to-describe interaction, animation, rendering, or a visual regression.
 - Consider only files explicitly produced or identified as review evidence for the current task. Do not search the checkout or home directory for arbitrary media.
 - A request to run this skill authorizes publishing relevant review-evidence files already identified in the task. It does not authorize uploading unrelated generated files.
-- Before upload, inspect every file for secrets, tokens, customer/personal data, private URLs, notifications, browser chrome, unrelated applications, and misleading or stale state. Ask before publishing when sensitivity or relevance is uncertain.
-- Treat attachment URLs as shareable. For a public GitHub repository, mention that the media will be public and ask before upload unless the user explicitly requested that those files be attached or published.
+- Before upload, inspect every file for secrets, tokens, customer/personal data, private URLs, notifications, browser chrome, unrelated applications, and misleading or stale state.
+- Treat attachment URLs as public, whatever the repository's visibility, and clean the media rather than skipping it. Prefer recapturing with mock data (seeded fixtures, a demo account, or text replaced in the page before capture). Otherwise crop, or cover each sensitive region with an opaque box (for example `magick in.png -fill black -draw 'rectangle x1,y1 x2,y2' out.png`); never blur text. Look at the result before upload. Ask only when relevance is unclear or the sensitive data can't be removed without losing what the media shows.
 - Prefer one concise comment. Use images for static states and video only when motion or sequencing adds information. Do not attach redundant media.
 - Keep evidence outside tracked source paths when practical. Never add media to Git solely to make it available to a PR.
 
