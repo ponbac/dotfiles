@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run AFTER applying chezmoi. Upgrade all shared agent tools and reconcile
 # matching Plannotator, pinned Pi packages and Herdr integrations; stage desktop T3
-# nightly on Omarchy hosts. Bun/.NET also track latest; leave other runtimes,
+# nightly on Omarchy hosts. Bun/.NET/pnpm also track latest; leave other runtimes,
 # OAuth and project trust untouched.
 # Herdr owns generated integrations, not chezmoi.
 set -euo pipefail
@@ -20,10 +20,10 @@ if [[ -e "$HOME/.vite-plus/bin" || -L "$HOME/.vite-plus/bin" ]]; then
   mv "$HOME/.vite-plus/bin" "$backup/bin"
   printf 'Vite+ launcher recovery backup: %s\n' "$backup"
 fi
-# Refresh the opted-in runtimes; preserve old installs for running processes.
-mise cache clear bun dotnet
-mise upgrade --global --yes --no-prune bun dotnet
-mise install bun dotnet
+# Refresh the opted-in runtimes and pnpm; preserve old installs for running processes.
+mise cache clear bun dotnet pnpm
+mise upgrade --global --yes --no-prune bun dotnet pnpm
+mise install bun dotnet pnpm
 # Refresh coding-agent caches; preserve old installs for running agents.
 mise cache clear pi codex claude npm:@opencode/cli github:herdrdev/herdr github:backnotprop/plannotator
 mise upgrade --global --yes --no-prune pi codex claude npm:@opencode/cli github:herdrdev/herdr
