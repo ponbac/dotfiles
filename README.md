@@ -196,7 +196,7 @@ bash ~/.local/share/chezmoi/tools/bootstrap-agents.sh
 ```
 
 Run this on each host after changing Pi package pins, or pass `--bootstrap` to
-the deployment command. It refreshes the shared tools' and Bun/.NET release caches and
+the deployment command. It refreshes the shared tools' and Bun/.NET/pnpm release caches and
 upgrades them to latest, ensures the shared mise tools are
 installed, reshims, installs current bundled Herdr integrations, and
 reconciles the exact versions declared in Pi settings. It also retires the stale desktop-only Pi
@@ -208,7 +208,11 @@ All three machines use mise as the active update owner for these tools:
 - `~/.config/mise/conf.d/95-coding-agents.toml` declares Pi, Codex and Claude via
   mise's binary backends, and OpenCode **v2** via `npm:@opencode/cli`.
 - `90-agent-release-policy.toml` exempts these tools from release-age delays.
-- All ten opted-in tools (the seven original tools plus REA, Bun and .NET) use
+- `94-pnpm.toml` declares a standalone pnpm. Node 25+ no longer bundles corepack,
+  so pnpm can't come from whichever Node a shell selects. pnpm switches to a
+  project's `packageManager` pin itself; unpinned projects use the global one. It
+  keeps mise's default release-age wait.
+- All eleven opted-in tools (the seven original tools plus REA, pnpm, Bun and .NET) use
   `latest`, with `auto_update = "24h"`. Each
   sync/bootstrap also explicitly checks current releases; versions can drift
   between machines until their next check. Plain `dotpush` publishes only source.

@@ -1,0 +1,4 @@
+# Node 25+ no longer bundles corepack, so pnpm must not depend on the selected Node.
+# The standalone binary switches to each project's packageManager version itself.
+[tools]
+pnpm = { version = "latest", auto_update = "24h" }

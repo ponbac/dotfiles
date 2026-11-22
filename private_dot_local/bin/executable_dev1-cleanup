@@ -321,23 +321,24 @@ section_mise() {
 }
 
 # b) pnpm store prune (drops packages no project references), per store layout version, using a
-#    pnpm of the matching major (v11 store -> pnpm 11 via corepack; v3 store -> the default pnpm 9).
-#    How much it frees is only known after the run.
+#    pnpm that owns the store: the default pnpm if `store path` matches, otherwise the newest
+#    corepack-cached pnpm of the layout's major (v3 -> 9, vN -> N). How much it frees is only
+#    known after the run.
 section_pnpm() {
-  local store sv pv before users freed
+  local store sv major pv before users freed
   local -a pnpm_cmd
   export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 COREPACK_ENABLE_STRICT=0
   for store in "$HOME/.local/share/pnpm/store"/v*/; do
     store=${store%/}; sv=${store##*/v}
-    if [ "$sv" -ge 10 ]; then
-      pv=$(find "$HOME/.cache/node/corepack/v1/pnpm" -mindepth 1 -maxdepth 1 -name "$sv.*" -printf '%f\n' 2>/dev/null | sort -V | tail -1 || true)
-      [ -n "$pv" ] || { add_skipped pnpm-store "$store" "$(kb_of "$store")" "no pnpm $sv available"; continue; }
+    pnpm_cmd=(pnpm)
+    if [ "$(cd "$HOME" && pnpm store path 2>/dev/null || true)" != "$store" ]; then
+      if [ "$sv" -eq 3 ]; then major=9; else major=$sv; fi
+      pv=$(find "$HOME/.cache/node/corepack/v1/pnpm" -mindepth 1 -maxdepth 1 -name "$major.*" -printf '%f\n' 2>/dev/null | sort -V | tail -1 || true)
+      [ -n "$pv" ] || { add_skipped pnpm-store "$store" "$(kb_of "$store")" "no pnpm owns this store"; continue; }
       pnpm_cmd=(corepack "pnpm@$pv")
-    else
-      pnpm_cmd=(pnpm)
-    fi
-    if [ "$(cd "$HOME" && "${pnpm_cmd[@]}" store path 2>/dev/null || true)" != "$store" ]; then
-      add_skipped pnpm-store "$store" "$(kb_of "$store")" "${pnpm_cmd[*]} does not own this store"; continue
+      if [ "$(cd "$HOME" && "${pnpm_cmd[@]}" store path 2>/dev/null || true)" != "$store" ]; then
+        add_skipped pnpm-store "$store" "$(kb_of "$store")" "${pnpm_cmd[*]} does not own this store"; continue
+      fi
     fi
     before=$(kb_of "$store")
     users=$(users_of "$store")
