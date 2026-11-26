@@ -102,7 +102,8 @@ Bring those edits back and review them before using SSH deployment.
   `~/.gemini/config/skills/` are left alone and win on a name clash.
 - Global agent instructions: `.chezmoitemplates/agents/global-instructions.md`
   renders to `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.pi/agent/AGENTS.md`,
-  `~/.config/opencode/AGENTS.md` and `~/.gemini/config/AGENTS.md` (Antigravity).
+  `~/.config/opencode/AGENTS.md` and `~/.gemini/AGENTS.md` (Antigravity; T3 Code links
+  that path, not `~/.gemini/config/AGENTS.md`, into its private Antigravity profile).
 - agent-browser's global config and recording pointer (`~/.agent-browser/`); see
   the agent-browser section.
 - Pi extensions, selected settings/model overrides, built-in MCP and pinned packages.
@@ -140,6 +141,13 @@ Bring those edits back and review them before using SSH deployment.
   then `~/.config/environment.d/90-executor-mcp.conf`, then keeps the live header, so
   an apply without the token never strips it. The token is never synced, but
   `chezmoi diff` of this file shows it: don't paste that diff anywhere.
+- Antigravity in T3 Code runs with a private `GEMINI_HOME`,
+  `~/.t3/userdata/providers/antigravity/<sha256 of "antigravity">/`. T3 links
+  `AGENTS.md`, `GEMINI.md`, `config/skills.json` and `config/skills/` from `~/.gemini`
+  but isolates MCP, so chezmoi symlinks that profile's `config/mcp_config.json` to
+  `~/.gemini/config/mcp_config.json`. While MCP servers are configured there, T3 skips
+  Antigravity for text generation. Executor needs two local Executor patches to work
+  in that ACP mode (see clawdis-infra `docs/executor.md`).
 - Clean shared Bash fragment, Git preferences, JJ, Herdr, tmux and Starship.
 - Omarchy-only user configuration, custom plugins, terminal preferences and
   selected service definitions. Hardware/layout differences use host templates.

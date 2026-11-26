@@ -33,7 +33,8 @@ Maintain one dependency ladder: trunk, then branches from bottom to top. Each br
    ```
 
 4. Distinguish local stack preparation from remote publication. Treat publishing, marking PRs ready, and merging as separate scopes.
-5. If `gh stack --help` says the extension is unavailable, report `gh extension install github/gh-stack` and pause. If a command exits with code 9, report that GitHub Stacked PRs is not enabled for the repository.
+5. Note that setting a parent branch as `base` in T3's `pull_request_create` or `gh pr create` only chains base branches — it does **not** create a GitHub Stack. When T3's `pull_request_*` tools are available, use them to create/edit PRs (keeping clean descriptions and thread links) and still run `gh stack link` afterward to register the GitHub Stack; `gh stack` is an explicit exception to preferring `pull_request_*` over `gh`.
+6. If `gh stack --help` says the extension is unavailable, report `gh extension install github/gh-stack` and pause. If a command exits with code 9, report that GitHub Stacked PRs is not enabled for the repository.
 
 Complete this step when the history owner, repository root, `origin`, trunk, requested remote scope, and current conflicts are known.
 
@@ -85,7 +86,10 @@ Complete the JJ branch when every layer is non-empty, described, tested as appro
 
 ### Git mode
 
-Let `gh stack` own the local stack metadata and cascading rebases. Supply all positional arguments so commands remain non-interactive.
+Choose between **link-only** (preferred in T3 Code worktrees or when PRs are already open/created via `pull_request_create`) and **local-tracked** (`gh stack init` / `add`):
+
+- **Link-only in Git:** create and push each branch in bottom-to-top order with ordinary `git` commands, open each PR with T3's `pull_request_create` (passing its immediate parent branch as `base`, full PR description, and desired draft/ready state), and then register the chain on GitHub with `gh stack link` in step 4. Prove each lower tip is an ancestor of the next with `git merge-base --is-ancestor <lower> <upper>`.
+- **Local-tracked in Git:** let `gh stack` own the local stack metadata and cascading rebases. Supply all positional arguments so commands remain non-interactive.
 
 For a new stack:
 
@@ -115,9 +119,17 @@ Complete the Git branch when `gh stack view --json` reports the intended order a
 
 ## 4. Publish and verify
 
-Publish only when remote publication is in scope. Use drafts by default; add `--open` only when the user requested ready-for-review PRs.
+Publish only when remote publication is in scope. Use drafts by default; add `--open` only when the user requested every listed PR to be marked ready for review (`gh stack link --open` marks **both new and existing** PRs ready — omit `--open` when PRs already have their intended draft/ready state, such as PR 1 ready and PR 2 draft).
 
-In Jujutsu mode, export first and pass every bookmark bottom to top:
+In **Git link-only mode** (e.g. PRs already created via T3's `pull_request_create`), link them bottom to top by PR number, PR URL, or branch name:
+
+```bash
+gh stack link <pr-1> <pr-2> [<pr-3>...]
+# Or append to an existing GitHub Stack number:
+gh stack link <stack-number> <new-pr>
+```
+
+In **Jujutsu mode**, export first and pass every bookmark bottom to top:
 
 ```bash
 jj git export
@@ -125,27 +137,25 @@ gh stack link --base <trunk> --remote origin <branch-1> <branch-2> <branch-3>
 jj git import
 ```
 
-Add `--open` to `gh stack link` for ready-for-review PRs. `link` pushes the branches, creates or reuses their PRs, fixes their base chain, and creates or updates the GitHub Stack without writing local `gh stack` metadata.
+`link` pushes branch arguments if needed, creates or reuses their PRs, fixes their base chain, and creates or updates the GitHub Stack without writing local `gh stack` metadata.
 
-In Git mode, submit the locally tracked stack without opening an interactive editor:
+In **Git local-tracked mode**, submit the locally tracked stack without opening an interactive editor:
 
 ```bash
 gh stack submit --auto --remote origin
 gh stack view --json
 ```
 
-Add `--open` to `gh stack submit --auto` for ready-for-review PRs.
+Add `--open` to `gh stack submit --auto` for ready-for-review PRs. `--auto` doesn't write a proper description; after publishing, set each PR's description with T3's `pull_request_update` (or `gh pr edit`), following the PR description guidance in `commit-and-push`.
 
-After either branch, query the PRs and verify the exact chain:
+After publishing, verify **both** the base chain and actual GitHub Stack membership:
 
 ```bash
 gh pr list --state open \
   --json number,title,headRefName,baseRefName,isDraft,url
 ```
 
-The bottom PR must target the trunk; each higher PR must target the preceding branch. Report the PR URLs in bottom-to-top order and their draft/ready state.
-
-`--auto` doesn't write a proper description. After publishing, set each PR's description with `gh pr edit`, following the PR description guidance in `commit-and-push`.
+`gh pr list` alone does **not** prove a GitHub Stack exists (ordinary base-chained PRs also pass it). Confirm the stack number/membership reported by `gh stack link` (or `gh stack view --json` in local-tracked mode). The bottom PR must target the trunk; each higher PR must target the preceding branch. Report the GitHub Stack number, the PR URLs in bottom-to-top order, and their draft/ready state.
 
 Complete this step only when every requested branch has one PR, every PR base matches the dependency ladder, and GitHub reports the PRs as one Stack.
 

@@ -1,6 +1,6 @@
 ---
 name: commit-and-push
-description: Describes the current Jujutsu (`jj`) change or Git worktree branch with a Conventional Commit message, creates a fitting bookmark/branch, pushes it, then finds or creates a draft PR using `gh` for GitHub origins or `az` for Azure DevOps origins. Detects linked Git worktrees and uses `git` rather than `jj` there. Use when the user asks to commit/describe, bookmark/branch, push, or open a PR for the current work.
+description: Describes the current Jujutsu (`jj`) change or Git worktree branch with a Conventional Commit message, creates a fitting bookmark/branch, pushes it, then finds or creates a draft PR (and links stacked GitHub PRs into a GitHub Stack with `gh stack`). Detects linked Git worktrees and uses `git` rather than `jj` there. Use when the user asks to commit/describe, bookmark/branch, push, or open a PR for the current work.
 ---
 
 # Commit and Push
@@ -21,7 +21,7 @@ Use this skill to prepare the current work for review: describe the current `jj`
    - Git worktree mode inspection: run `git status --short --branch`, inspect `git diff --stat` / `git diff` and `git diff --cached --stat` / `git diff --cached`, and check recent context with `git log --oneline --decorate -n 5`.
    - Identify screenshots/videos intended only as PR review evidence during inspection. They are not source changes: exclude them from the commit and preserve their paths for step 7. In JJ mode, remember that unignored files may already be tracked; place review-only media outside the working copy before describing/pushing, without adding ignore-file noise solely for this workflow.
    - Stop if the repo has conflicts, no meaningful change, or multiple unrelated changes that should be split. Ask the user before proceeding in those cases.
-   - On GitHub, publish with `gh-stack` instead of steps 4–6 when this branch sits on another open PR's branch, or when the work splits into layers where a later layer needs an earlier one merged first. Each layer must be reviewable on its own. Don't split one change just to make a stack. Steps 3 and 7 and the PR description guidance still apply to each PR.
+   - On GitHub, when this branch sits on another open PR's branch, or when the work splits into layers where a later layer needs an earlier one merged first, publish as a real GitHub Stack via `gh-stack`. Each layer must be reviewable on its own; don't split one change just to make a stack. When T3's `pull_request_create` tool is available, you can create each PR with it (using its parent branch as `base`) and then run `gh stack link <pr1> <pr2> …` bottom to top; otherwise follow `gh-stack` instead of steps 4–6. Steps 3 and 7 and the PR description guidance still apply to each PR.
 
 2. **Determine the remote provider.**
    - Get `origin` from `jj git remote list` or `git remote get-url origin`.
@@ -67,6 +67,7 @@ Use this skill to prepare the current work for review: describe the current `jj`
    - If none exists, create a draft PR using explicit repositories to avoid `gh` fork-target defaults:
      - `base=$(gh repo view <target-owner/target-repo> --json defaultBranchRef --jq '.defaultBranchRef.name')`
      - `gh pr create --repo <target-owner/target-repo> --draft --head <source-owner>:<source> --base "$base" --title "$subject" --body "$body"`
+   - **Stacked PR gate:** if this PR targets another open PR's branch (not the repository default branch), link the chain into a GitHub Stack with `gh stack link <parent-pr-or-branch> <this-pr-or-branch>` (bottom to top; omit `--open` so existing draft/ready states are preserved) and confirm the stack number in its output. Setting `base` in `pull_request_create` or `gh pr create` alone does not create a GitHub Stack; `gh stack` is an explicit exception to preferring T3's `pull_request_*` tools over `gh`.
 
    **Azure DevOps (`az`)**
    - Ensure the Azure DevOps extension and defaults/auth are available (`az repos pr list` should work with `--detect true`, or configured org/project/repository defaults).

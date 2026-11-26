@@ -1,0 +1,6 @@
+{{- /* T3 Code runs Antigravity with a private GEMINI_HOME (this profile; the
+       directory is sha256 of the instance id "antigravity") that isolates MCP.
+       Point its MCP config at the shared one so Executor is available in T3 too.
+       Side effect: T3 skips Antigravity for text generation while MCP servers are
+       configured here. */ -}}
+{{ joinPath .chezmoi.homeDir ".gemini" "config" "mcp_config.json" }}

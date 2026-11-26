@@ -59,3 +59,10 @@
 .agents/skills/explain-change
 .claude/skills/explain-change
 {{- end }}
+
+# Global rules moved to ~/.gemini/AGENTS.md: T3 Code links that path (not the
+# config/ one) into its private Antigravity profile, and standalone agy reads both,
+# so keeping the old copy would load the rules twice there.
+{{- if has .chezmoi.hostname (list "omarchy" "omarchy-laptop" "dev-1") }}
+.gemini/config/AGENTS.md
+{{- end }}
