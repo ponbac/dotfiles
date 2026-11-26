@@ -19,3 +19,16 @@ hl.unbind("PRINT")
 o.bind("PRINT", "Screenshot", "omasnap")
 
 -- Tmux, YouTube, and ChatGPT remain provided by Quattro's defaults.
+
+-- Dictation keys from before Alt + Space and Right Alt became the defaults
+-- (added by Omarchy migration 1793477875; Voxtype is the backend here).
+if o.dictation_installed and o.dictation_installed() then
+  o.bind("SUPER + CTRL + X", "Toggle dictation", "omarchy-dictation toggle")
+  o.bind_hold("F9", "Start dictation (push-to-talk)", "omarchy-dictation start", "Stop dictation (push-to-talk)", "omarchy-dictation stop")
+end
+
+-- Hex (anomaly.hex): F10 hold to dictate, F8 Annotate (tap to record, hold to draw).
+if o.cmd_present("hex") then
+  o.bind_hold("F10", "Hex dictation (push-to-talk)", "hex dictation start", "Hex dictation stop", "hex dictation stop")
+  o.bind("F8", "Hex Annotate", hl.dsp.global("anomaly.hex:capture"))
+end

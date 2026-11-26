@@ -53,3 +53,9 @@ o.bind("PRINT", "Screenshot", "omasnap")
 -- o.bind("SUPER + SHIFT + S", nil, "omarchy-capture-screenshot")
 -- o.bind("SUPER + H", nil, "voxtype record toggle")
 -- o.bind("SUPER + PERIOD", nil, "omarchy-shell shell toggle omarchy.emojis")
+
+-- Hex (anomaly.hex): F10 hold to dictate, F8 Annotate (tap to record, hold to draw).
+if o.cmd_present("hex") then
+  o.bind_hold("F10", "Hex dictation (push-to-talk)", "hex dictation start", "Hex dictation stop", "hex dictation stop")
+  o.bind("F8", "Hex Annotate", hl.dsp.global("anomaly.hex:capture"))
+end
