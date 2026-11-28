@@ -1,4 +1,4 @@
-# Shared browser tool; daily auto updates plus explicit dotsync/bootstrap upgrades.
+# Shared browser tool; 4-hourly auto updates plus explicit dotsync/bootstrap upgrades.
 # Match dev-1's existing backend rather than adding a second installation.
 [tools]
-"npm:agent-browser" = { version = "latest", auto_update = "24h", postinstall = "agent-browser install" }
+"npm:agent-browser" = { version = "latest", auto_update = "4h", postinstall = "agent-browser install" }

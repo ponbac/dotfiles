@@ -1,21 +1,11 @@
-# Receive these coding-agent releases immediately. Keep mise's default waiting
-# period for other tools, and leave Omarchy's runtime/PATH ownership unchanged.
+# Shared update and cleanup policy. Fast-moving agents opt out of mise's
+# release-age wait per tool (minimum_release_age = "0s" in their declarations);
+# everything else keeps the default wait. Omarchy's runtime/PATH ownership stays.
 [settings]
 # Only opted-in shared tools auto-update; never opt host runtimes in globally.
 tool_update.global_auto = false
-minimum_release_age_excludes = [
-  "plannotator",
-  "github:backnotprop/plannotator",
-  "herdr",
-  "github:herdrdev/herdr",
-  "pi",
-  "codex",
-  "opencode",
-  "claude",
-  "npm:@earendil-works/pi-coding-agent",
-  "npm:@mariozechner/pi-coding-agent",
-  "npm:@openai/codex",
-  "npm:@opencode/cli",
-  "npm:opencode-ai",
-  "npm:@anthropic-ai/claude-code",
-]
+# Omarchy sets auto_prune = false so `mise up` cannot delete a running version.
+# Current mise defers removal by prune_after instead, and `mise prune` (run by
+# mise-prune.timer) keeps any version a running process was started from.
+upgrade.auto_prune = true
+upgrade.prune_after = "24h"

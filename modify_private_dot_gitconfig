@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
-# Preserve host authentication/settings; add only our shared include if missing.
+# Preserve host authentication/settings; add only our shared include if missing
+# and keep gh's credential helper independent of a mise version.
 from pathlib import Path
 import os
+import re
 import subprocess
 import sys
 import tempfile
 
 text = sys.stdin.read()
+# `gh auth setup-git` records gh's absolute path. A mise install path breaks once
+# that version is pruned, so resolve gh through PATH instead.
+text = re.sub(r'(helper\s*=\s*!)\S*/mise/installs/gh/\S*/gh( auth git-credential)', r'\1gh\2', text)
 include = str(Path.home() / '.config/git/shared.conf')
 with tempfile.TemporaryDirectory(prefix='chezmoi-git-') as tmp:
     config = Path(tmp) / 'config'

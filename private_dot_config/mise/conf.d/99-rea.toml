@@ -4,4 +4,4 @@
 # postinstall = 'python3 "$HOME/.local/share/chezmoi/tools/install-rea-skills.py" "$MISE_TOOL_INSTALL_PATH"'
 [tools."npm:rea-agents"]
 version = "latest"
-auto_update = "24h"
+auto_update = "4h"

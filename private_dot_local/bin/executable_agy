@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Versions/options live in mise conf.d; do not mutate global config on launch.
+# T3 Code's Antigravity provider runs this launcher (binaryPath "agy").
+set -euo pipefail
+exec mise exec antigravity-cli -- agy "$@"

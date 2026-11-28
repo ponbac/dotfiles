@@ -2,12 +2,18 @@
 # Bun/.NET policy is merged separately; other runtimes and shell/PATH stay local.
 # mise owns updates; prevent application background updaters from making a
 # second installation outside mise. Explicit manual commands remain available.
+# Agents check for releases every 4h (runtimes stay at 24h) and skip mise's
+# release-age wait.
 [env]
 DISABLE_AUTOUPDATER = "1"
 OPENCODE_DISABLE_AUTOUPDATE = "1"
+AGY_CLI_DISABLE_AUTO_UPDATE = "true"
 
 [tools]
-pi = { version = "latest", auto_update = "24h" }
-codex = { version = "latest", auto_update = "24h" }
-claude = { version = "latest", auto_update = "24h" }
-"npm:@opencode/cli" = { version = "latest", auto_update = "24h", allow_low_downloads = "true", allow_builds = "@opencode/cli" }
+pi = { version = "latest", auto_update = "4h", minimum_release_age = "0s" }
+codex = { version = "latest", auto_update = "4h", minimum_release_age = "0s" }
+claude = { version = "latest", auto_update = "4h", minimum_release_age = "0s" }
+"npm:@opencode/cli" = { version = "latest", auto_update = "4h", minimum_release_age = "0s", allow_low_downloads = "true", allow_builds = "@opencode/cli" }
+# Same key as Omarchy's system entry, so this replaces it rather than adding a
+# second install. T3 Code runs it through ~/.local/bin/agy (binaryPath "agy").
+antigravity-cli = { version = "latest", auto_update = "4h", minimum_release_age = "0s" }

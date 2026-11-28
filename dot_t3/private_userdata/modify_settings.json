@@ -1,0 +1,9 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /* T3 Code owns this file. Only pin Antigravity to the mise-managed launcher
+       (~/.local/bin/agy), so T3 never prefers its own downloaded runtime. A host
+       without T3 settings yet keeps no file. */ -}}
+{{- if .chezmoi.stdin -}}
+{{- $current := fromJson .chezmoi.stdin -}}
+{{- $policy := dict "providerInstances" (dict "antigravity" (dict "config" (dict "binaryPath" "agy"))) -}}
+{{- includeTemplate "agents/keep-format" (dict "stdin" .chezmoi.stdin "value" (mergeOverwrite $current $policy) "format" "json") -}}
+{{- end -}}

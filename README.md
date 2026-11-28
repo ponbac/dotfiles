@@ -34,7 +34,7 @@ Wallpaper assets remain separate. Specify the current hostname explicitly if
 you also want to apply locally.
 
 Git commands ask before applying/publishing. Pass `--yes` for an intentional unattended
-run. `dotsync` also upgrades the four coding agents to latest and reconciles
+run. `dotsync` also upgrades the five coding agents to latest and reconciles
 pinned Pi packages on the current machine; it does not fan out over SSH. Run it on whichever machine should receive your changes.
 `dotpush` does not apply the source locally; run `dotsync` there too if needed.
 
@@ -109,9 +109,10 @@ Bring those edits back and review them before using SSH deployment.
 - Pi extensions, selected settings/model overrides, built-in MCP and pinned packages.
   The retired `pi-mcp-adapter` is not installed. Executor uses native HTTP bearer
   headers with `${EXECUTOR_MCP_TOKEN}` and direct tool exposure; the token stays local.
-- Shared mise manifests and nonmutating launchers for Pi, Codex, Claude, OpenCode v2
-  and Herdr. These tools, Plannotator, agent-browser and REA follow stable `latest`
-  releases with daily mise auto-update checks. Bun and .NET also opt in through a
+- Shared mise manifests and nonmutating launchers for Pi, Codex, Claude, OpenCode v2,
+  Antigravity (`agy`/`antigravity`) and Herdr. These tools, Plannotator,
+  agent-browser and REA follow stable `latest` releases with 4-hourly mise
+  auto-update checks; Bun, .NET and pnpm check daily. Bun and .NET also opt in through a
   selected-key merge of each host's global mise config; other runtimes stay local.
   User-level Herdr takes precedence over Omarchy's package without modifying it.
 - Plannotator follows `latest` in `97-plannotator.toml`. Its mise tool-level
@@ -148,6 +149,11 @@ Bring those edits back and review them before using SSH deployment.
   `~/.gemini/config/mcp_config.json`. While MCP servers are configured there, T3 skips
   Antigravity for text generation. Executor needs two local Executor patches to work
   in that ACP mode (see clawdis-infra `docs/executor.md`).
+- T3 Code runs the mise-managed Antigravity, not its own download: a modify
+  template sets only `providerInstances.antigravity.config.binaryPath = "agy"` in
+  `~/.t3/userdata/settings.json` (T3 otherwise prefers its managed runtime over
+  `PATH`). Bootstrap removes `~/.t3/tools/antigravity-acp` when nothing runs from it.
+  Don't press Install/Update for Antigravity in T3's settings; mise updates it.
 - Clean shared Bash fragment, Git preferences, JJ, Herdr, tmux and Starship.
 - Omarchy-only user configuration, custom plugins, terminal preferences and
   selected service definitions. Hardware/layout differences use host templates.
@@ -213,24 +219,35 @@ network/install hook on every chezmoi apply.
 
 All three machines use mise as the active update owner for these tools:
 
-- `~/.config/mise/conf.d/95-coding-agents.toml` declares Pi, Codex and Claude via
-  mise's binary backends, and OpenCode **v2** via `npm:@opencode/cli`.
-- `90-agent-release-policy.toml` exempts these tools from release-age delays.
+- `~/.config/mise/conf.d/95-coding-agents.toml` declares Pi, Codex, Claude and
+  Antigravity (`antigravity-cli`) via mise's binary backends, and OpenCode **v2** via
+  `npm:@opencode/cli`. Antigravity uses Omarchy's key, so the user declaration
+  replaces `/etc/mise/conf.d/omarchy-tools.toml`'s lazy entry instead of adding a
+  second install; on dev-1 it is the only declaration.
+- The agents, Herdr and Plannotator set `minimum_release_age = "0s"` per tool, so
+  they skip mise's release-age wait. This needs a current mise: bootstrap runs
+  `mise self-update` where mise is a standalone `~/.local/bin/mise` (dev-1).
+- `90-agent-release-policy.toml` turns `upgrade.auto_prune` back on (Omarchy turns
+  it off): a version `mise upgrade` replaced is removed after `upgrade.prune_after`
+  (24h). `mise-prune.timer` runs `mise prune --tools --yes` daily on every host; it
+  keeps versions a tracked config selects or a running process was started from,
+  so it also cleans Omarchy's lazy tools (Copilot, Cursor, Qwen and so on).
 - `94-pnpm.toml` declares a standalone pnpm. Node 25+ no longer bundles corepack,
   so pnpm can't come from whichever Node a shell selects. pnpm switches to a
   project's `packageManager` pin itself; unpinned projects use the global one. It
   keeps mise's default release-age wait.
-- All eleven opted-in tools (the seven original tools plus REA, pnpm, Bun and .NET) use
-  `latest`, with `auto_update = "24h"`. Each
+- All twelve opted-in tools (the eight agent tools plus REA, pnpm, Bun and .NET) use
+  `latest`. Agent tools and REA use `auto_update = "4h"`; the runtimes Bun, .NET
+  and pnpm keep `"24h"`. Each
   sync/bootstrap also explicitly checks current releases; versions can drift
   between machines until their next check. Plain `dotpush` publishes only source.
   Global/runtime-wide auto-update remains disabled.
 - Bootstrap retires the entire `~/.vite-plus/bin` launcher directory into a
   private backup under `~/.local/state/vite-plus-launcher-backups/`. Vite+ runtime
   and agent launchers must not shadow mise. The rest of Vite+ stays untouched.
-- Claude/OpenCode background auto-updaters are disabled so mise remains the
+- Claude/OpenCode/Antigravity background auto-updaters are disabled so mise remains the
   update owner. Explicit manual update commands are not blocked.
-- `~/.local/bin/{pi,codex,claude,opencode}` delegates to `mise exec` without
+- `~/.local/bin/{pi,codex,claude,opencode,agy,antigravity}` delegates to `mise exec` without
   writing globals, triggering `mise use`, or overriding age policy on launch.
 
 Omarchy still owns shell/PATH activation. Chezmoi merges Bun and .NET's
@@ -246,7 +263,7 @@ See [backend selection](https://mise.jdx.dev/core-tools.html#selecting-another-i
 and [.NET install modes](https://mise.jdx.dev/lang/dotnet.html#isolated-mode).
 Unrelated global tools, Node/system runtimes, project overrides and trust paths
 remain host-local. Project-specific runtime pins still take precedence. Existing
-processes are never restarted and old runtime versions are retained for rollback.
+processes are never restarted; replaced versions stay for the 24h prune grace period.
 Validate this merge with `python3 -B -m unittest discover -s tools -p 'test_mise_runtime_policy.py' -v`.
 The old agent entries were removed from host globals/legacy conf.d files after
 verification. Duplicate Node-global/npm-global installs, old OpenCode v1
@@ -280,16 +297,15 @@ already installed. The tool's `postinstall` also provisions the browser after
 direct mise upgrades. After successful provisioning, bootstrap uninstalls legacy
 agent-browser packages from `~/.npm-global` and user-owned mise Node global
 prefixes, then removes older mise agent-browser versions. Only the current CLI
-installation remains; other tools are not pruned. The user-level
-`agent-browser-prune.timer` also removes unused browser-tool versions hourly after
-future automatic upgrades. Mise retains versions still needed by running processes
+installation remains. The shared `mise-prune.timer` cleans up after future
+automatic upgrades. Mise retains versions still needed by running processes
 or tracked project configurations. Pruning never runs inside an unfinished
 postinstall hook. No browser session is started and browser profiles are not removed.
 
 On a Linux host missing browser system libraries, run
 `mise exec npm:agent-browser -- agent-browser install --with-deps` separately
 and review its privileged package-manager changes. Bootstrap does not use sudo.
-Unlike the four coding agents, agent-browser retains mise's default release-age
+Unlike the coding agents, agent-browser retains mise's default release-age
 policy. Avoid `npm install -g agent-browser` outside mise or its own updater.
 
 `~/.agent-browser/config.json` registers `~/.agent-browser/recording-cursor.js` as
@@ -312,10 +328,11 @@ Shims/`mise exec` check the invoked opted-in tool; an activated shell checks in
 the background at prompts. These are activity-driven, not an unconditional timer.
 Exact pins and project overrides do not advance. Release-age policy still applies.
 
-Daily checks are enabled individually for Pi, Codex, Claude, OpenCode,
-agent-browser, Herdr, Plannotator, REA, Bun and .NET. We do not enable
+4-hourly checks are enabled individually for Pi, Codex, Claude, OpenCode,
+Antigravity, agent-browser, Herdr, Plannotator and REA (matching Omarchy's own
+agent CLIs); Bun, .NET and pnpm check daily. We do not enable
 `tool_update.global_auto`: Node and other unlisted host-owned runtimes remain untouched.
-Explicit sync/bootstrap updates still run, regardless of the daily check interval.
+Explicit sync/bootstrap updates still run, regardless of the check interval.
 Herdr refreshes bundled integrations after an installation; Plannotator runs its
 version-matched official installer and installs the matching Pi extension. These
 hooks are noninteractive and failures fail the install. The integration hooks,
@@ -323,8 +340,8 @@ bootstrap's Pi reconciliation and deployment applies share a host-local file loc
 so simultaneous writers cannot restore a stale pin. If manually applying chezmoi
 while an update may be running, use
 `flock ~/.local/state/agent-integration-update.lock chezmoi apply`.
-Check `mise doctor` for background update failures. Existing release-age exemptions remain; agent-browser
-keeps the default cooling-off period. Running agents/servers are never restarted.
+Check `mise doctor` for background update failures. agent-browser, REA and the
+runtimes keep the default cooling-off period. Running agents/servers are never restarted.
 
 Updating **mise itself** is separate: `self_update.auto = true` enables periodic
 checks (default 7d) in supported standalone installs. Package-managed mise should

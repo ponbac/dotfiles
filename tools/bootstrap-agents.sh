@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run AFTER applying chezmoi. Upgrade all shared agent tools and reconcile
+# Run AFTER applying chezmoi. Update a standalone mise, upgrade all shared agent
+# tools (including Antigravity) and reconcile
 # matching Plannotator, pinned Pi packages and Herdr integrations; stage desktop T3
 # nightly on Omarchy hosts. Bun/.NET/pnpm also track latest; leave other runtimes,
 # OAuth and project trust untouched.
@@ -12,6 +13,11 @@ tools_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$HOME"
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 command -v mise >/dev/null
+# A standalone mise (dev-1) updates itself; Omarchy's packaged mise updates with
+# the system. Per-tool minimum_release_age and deferred pruning need a current mise.
+if [[ "$(command -v mise)" == "$HOME/.local/bin/mise" ]]; then
+  mise self-update --yes
+fi
 # Retire all Vite+ launchers, including its runtime and agent shims. Keep the
 # installation and a private recovery backup; do not rewrite host shell files.
 if [[ -e "$HOME/.vite-plus/bin" || -L "$HOME/.vite-plus/bin" ]]; then
@@ -20,24 +26,26 @@ if [[ -e "$HOME/.vite-plus/bin" || -L "$HOME/.vite-plus/bin" ]]; then
   mv "$HOME/.vite-plus/bin" "$backup/bin"
   printf 'Vite+ launcher recovery backup: %s\n' "$backup"
 fi
-# Refresh the opted-in runtimes and pnpm; preserve old installs for running processes.
+# Refresh the opted-in runtimes and pnpm. Replaced versions are removed after
+# upgrade.prune_after (24h); mise-prune.timer keeps versions still running.
 mise cache clear bun dotnet pnpm
-mise upgrade --global --yes --no-prune bun dotnet pnpm
+mise upgrade --global --yes bun dotnet pnpm
 mise install bun dotnet pnpm
-# Refresh coding-agent caches; preserve old installs for running agents.
-mise cache clear pi codex claude npm:@opencode/cli github:herdrdev/herdr github:backnotprop/plannotator
-mise upgrade --global --yes --no-prune pi codex claude npm:@opencode/cli github:herdrdev/herdr
+# Refresh coding-agent caches, with the same deferred pruning.
+agents=(pi codex claude npm:@opencode/cli antigravity-cli github:herdrdev/herdr)
+mise cache clear "${agents[@]}" github:backnotprop/plannotator
+mise upgrade --global --yes "${agents[@]}"
 # Upgrade Plannotator only after its Pi dependency and the other agents are ready.
-mise upgrade --global --yes --no-prune github:backnotprop/plannotator
+mise upgrade --global --yes github:backnotprop/plannotator
 # Install Plannotator last: its official installer detects the other agents.
-mise install pi codex claude npm:@opencode/cli github:herdrdev/herdr
+mise install "${agents[@]}"
 # Browser automation deliberately retains only the current version.
 bash "$tools_dir/bootstrap-agent-browser.sh"
 mise install github:backnotprop/plannotator
 # REA follows latest but is disabled in agents: no MCP registration and no
 # generated skills. Retire leftover skill trees into a private recovery backup.
 mise cache clear npm:rea-agents
-mise upgrade --global --yes --no-prune npm:rea-agents
+mise upgrade --global --yes npm:rea-agents
 mise install npm:rea-agents
 for skill in .agents/skills/reverse-engineer-anything .claude/skills/reverse-engineer-anything; do
   if [[ -e "$HOME/$skill" || -L "$HOME/$skill" ]]; then
@@ -48,6 +56,22 @@ for skill in .agents/skills/reverse-engineer-anything .claude/skills/reverse-eng
   fi
 done
 mise reshim
+# T3 Code runs Antigravity through ~/.local/bin/agy (chezmoi pins binaryPath), so
+# its own downloaded runtime is a stale duplicate. Retire it when nothing runs it.
+if [[ -d "$HOME/.t3/tools/antigravity-acp" ]] && ! pgrep -f '[.]t3/tools/antigravity-acp/' >/dev/null; then
+  # T3 marks its release files read-only.
+  chmod -R u+w "$HOME/.t3/tools/antigravity-acp"
+  rm -rf "$HOME/.t3/tools/antigravity-acp"
+  echo 'Removed T3 Code managed Antigravity runtime; T3 uses ~/.local/bin/agy.'
+fi
+# One timer prunes every unused mise version (it replaced agent-browser-prune).
+if systemctl --user is-enabled agent-browser-prune.timer >/dev/null 2>&1 \
+  || [[ -L "$HOME/.config/systemd/user/timers.target.wants/agent-browser-prune.timer" ]]; then
+  systemctl --user disable --now agent-browser-prune.timer 2>/dev/null \
+    || rm -f "$HOME/.config/systemd/user/timers.target.wants/agent-browser-prune.timer"
+fi
+systemctl --user daemon-reload
+systemctl --user enable --now mise-prune.timer
 # Reconcile bundled hooks even when Herdr was already installed (no postinstall).
 bash "$tools_dir/install-herdr-integrations.sh" "$(mise where github:herdrdev/herdr)/herdr"
 command -v pi >/dev/null

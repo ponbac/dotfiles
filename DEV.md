@@ -6,6 +6,8 @@ manage only those agents, including OpenCode v2. Background self-updaters are
 disabled. Old global declarations and duplicate installers were removed after
 verification. A later user-approved change makes Bun and .NET shared `latest`
 defaults with daily update checks, merging only those keys into host globals.
+Antigravity (`antigravity-cli`) later joined the agents, T3 Code was pointed at it,
+agent tools moved to 4-hourly checks, and pruning was re-enabled (2026-11-28).
 Other runtimes and trust remain host-owned. The original audit and initial
 deferral below are historical context; README describes the current setup.
 
@@ -147,7 +149,8 @@ Server `~/.config/mise/conf.d/50-ari-developer-tools.toml` additionally selects
 aspire 13.5.2, dotnet:Microsoft.SqlPackage 170.4.83, jj 0.44.0,
 lazydocker 0.25.2, npm:@openai/codex 0.153.4, npm:agent-browser 0.35.0,
 opencode 1.18.23, powershell 7.6.5, and yq 4.53.6. Server globals also enable
-Node corepack. Desktop globals retain `upgrade.auto_prune=false`.
+Node corepack. Omarchy's `upgrade.auto_prune=false` is overridden by the shared
+`90-agent-release-policy.toml` (see README).
 
 Installed does not mean selected: examples include local dotnet 10.0.300 and
 10.0.400 despite a 10.0.203 selection; server Node 26.8.1/26.10.0 despite a

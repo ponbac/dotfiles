@@ -2,7 +2,8 @@
 # The installer owns its skills, agent integrations, sidecars and ~/.local/bin copy.
 [tools."github:backnotprop/plannotator"]
 version = "latest"
-auto_update = "24h"
+auto_update = "4h"
+minimum_release_age = "0s"
 depends = ["pi"]
 asset_pattern = "plannotator-{{ os() }}-{{ arch() }}"
 bin = "plannotator"
