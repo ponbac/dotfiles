@@ -1,7 +1,11 @@
 {{- /* chezmoi:modify-template */ -}}
 {{- $current := dict -}}
 {{- if .chezmoi.stdin -}}{{- $current = fromToml .chezmoi.stdin -}}{{- end -}}
-{{- /* Shared policy owns the entire global MCP server map. */ -}}
+{{- /* Shared policy owns the global MCP server map, except node_repl: the
+       ChatGPT/Codex desktop app registers it for browser use and re-adds it. */ -}}
+{{- $appServers := dict -}}
+{{- if hasKey $current "mcp_servers" -}}{{- with index $current "mcp_servers" -}}{{- if hasKey . "node_repl" -}}{{- $_ := set $appServers "node_repl" (index . "node_repl") -}}{{- end -}}{{- end -}}{{- end -}}
 {{- $_ := unset $current "mcp_servers" -}}
 {{- $policy := include (joinPath .chezmoi.sourceDir ".chezmoitemplates" "agents" "codex-settings.json") | fromJson -}}
+{{- $policy = mergeOverwrite $policy (dict "mcp_servers" $appServers) -}}
 {{- includeTemplate "agents/keep-format" (dict "stdin" .chezmoi.stdin "value" (mergeOverwrite $current $policy) "format" "toml") -}}

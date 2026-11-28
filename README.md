@@ -136,6 +136,8 @@ Bring those edits back and review them before using SSH deployment.
   OpenCode's `opencode.json` owns MCP configuration; `opencode.jsonc` has its MCP
   section removed so it cannot reintroduce servers. Both preserve unrelated settings.
   All clients reference the host-local `EXECUTOR_MCP_TOKEN`; no token is synced.
+  Codex keeps one server it didn't declare: `node_repl`, which the ChatGPT/Codex
+  desktop app registers for browser use and would otherwise re-add as drift.
 - Executor for Antigravity in `~/.gemini/config/mcp_config.json`. Antigravity
   sends `${VAR}` in global MCP headers literally (checked in 1.5.13), so apply writes
   the host-local `EXECUTOR_MCP_TOKEN` into that file (0600). It reads the environment,

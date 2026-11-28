@@ -72,7 +72,10 @@
         {
           "id": "ponbac.keyboard-layout"
         }
-      ]
+      ],
+      "centerBegin": [],
+      "centerEnd": [],
+      "tray": []
     },
     "position": "top",
     "transparent": false,
